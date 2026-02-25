@@ -1,0 +1,70 @@
+# Trading Research Lab Configuration
+
+# Database settings
+database:
+  path: "data/trading_lab.db"
+  echo: false
+  pool_size: 5
+  max_overflow: 10
+
+# Data providers
+data_providers:
+  yahoo:
+    enabled: true
+    default_timeframe: "1d"
+    max_retries: 3
+    retry_delay: 1
+  nse:
+    enabled: true
+    default_timeframe: "1d"
+    max_retries: 3
+    retry_delay: 1
+
+# Backtest configuration
+backtest:
+  default_capital: 100000.0
+  default_commission: 0.001
+  default_slippage: 0.0005
+  default_timeframe: "1d"
+
+# Risk management
+risk:
+  default_risk_per_trade: 0.02
+  max_position_size: 0.2
+  max_drawdown_limit: 0.25
+  max_daily_loss: 0.05
+
+# Optimization settings
+optimization:
+  n_jobs: -1
+  cv_folds: 5
+  default_iterations: 100
+  random_state: 42
+
+# ML settings
+ml:
+  test_size: 0.2
+  random_state: 42
+  default_model_path: "data/models/"
+  feature_cache_ttl: 3600
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"
+  output_dir: "logs"
+  rotation: "daily"
+  retention: 30
+
+# API settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 1
+
+# Paper trading
+paper_trading:
+  initial_capital: 100000.0
+  simulated_latency_ms: 100
+  enable_order_simulation: true
