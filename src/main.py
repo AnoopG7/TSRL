@@ -1,21 +1,25 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-import pandas as pd
 
 from config.settings import get_settings
 from src.infrastructure.database.connection import init_db
-from src.infrastructure.data_providers.yahoo_provider import YahooFinanceProvider
-from src.infrastructure.data_providers.nse_provider import NSEProvider
+from src.infrastructure.database.repositories import BacktestRepository
 from src.strategies.registry import StrategyRegistry
-from src.strategies.momentum.ema_crossover import EMACrossoverStrategy, RSIMeanReversionStrategy
-from scripts.generate_sample_data import generate_sample_ohlcv
-from src.engine.backtest.engine import BacktestEngine, BacktestConfig
 
+# Import strategies to trigger @register_strategy decorators
+from src.strategies.momentum.ema_crossover import EMACrossoverStrategy, RSIMeanReversionStrategy  # noqa
+from src.strategies.momentum.macd_strategy import MACDStrategy  # noqa
+from src.strategies.momentum.ma_ribbon import MovingAverageRibbonStrategy, TripleMAStrategy  # noqa
+from src.strategies.momentum.volume_strategies import VolumeProfileStrategy, VolumeBreakoutStrategy  # noqa
+from src.strategies.mean_reversion.bollinger_bands import BollingerBandsStrategy, BollingerBandsBreakoutStrategy  # noqa
+
+from src.application.services.backtest_service import BacktestService
+from src.application.services.data_service import DataService
 
 settings = get_settings()
 
@@ -29,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Trading Strategy Research Lab",
     description="AI-Powered Trading Strategy Research Platform",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -42,10 +46,7 @@ app.add_middleware(
 )
 
 
-class SymbolRequest(BaseModel):
-    ticker: str
-    exchange: Optional[str] = None
-
+# ==================== Request Models ====================
 
 class DataIngestRequest(BaseModel):
     symbol: str
@@ -67,18 +68,24 @@ class BacktestRequest(BaseModel):
     parameters: Optional[dict] = None
 
 
-class BacktestResponse(BaseModel):
-    status: str
-    message: str
-    backtest_id: Optional[int] = None
-    results: Optional[dict] = None
+class CompareRequest(BaseModel):
+    strategy_names: List[str]
+    symbol: str
+    start_date: str
+    end_date: str
+    timeframe: str = "1d"
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
 
+
+# ==================== Endpoints ====================
 
 @app.get("/")
 async def root():
     return {
         "name": "Trading Strategy Research Lab",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running",
     }
 
@@ -97,32 +104,46 @@ async def get_strategy(strategy_name: str):
     return info
 
 
+@app.get("/api/v1/backtests")
+async def list_backtests(limit: int = 20):
+    repo = BacktestRepository()
+    try:
+        backtests = repo.get_all(limit=limit)
+        return {
+            "backtests": [
+                {
+                    "id": b.id,
+                    "name": b.name,
+                    "symbol": b.symbol.ticker if b.symbol else None,
+                    "strategy": b.strategy.name if b.strategy else None,
+                    "start_date": b.start_date.isoformat() if b.start_date else None,
+                    "end_date": b.end_date.isoformat() if b.end_date else None,
+                    "initial_capital": b.initial_capital,
+                    "final_capital": b.final_capital,
+                    "total_return": b.total_return,
+                    "total_trades": b.total_trades,
+                    "status": b.status,
+                    "created_at": b.created_at.isoformat() if b.created_at else None,
+                }
+                for b in backtests
+            ]
+        }
+    finally:
+        repo.close()
+
+
 @app.post("/api/v1/data/ingest")
 async def ingest_data(request: DataIngestRequest):
     try:
-        if request.source == "yahoo":
-            provider = YahooFinanceProvider()
-        elif request.source == "nse":
-            provider = NSEProvider()
-        else:
-            raise HTTPException(status_code=400, detail="Invalid data source")
-
-        df = provider.fetch_ohlcv(
+        service = DataService()
+        result = service.ingest_and_persist(
             symbol=request.symbol,
             start_date=datetime.fromisoformat(request.start_date),
             end_date=datetime.fromisoformat(request.end_date),
             timeframe=request.timeframe,
+            source=request.source,
         )
-
-        return {
-            "status": "success",
-            "symbol": request.symbol,
-            "records": len(df),
-            "start_date": str(df.index.min()),
-            "end_date": str(df.index.max()),
-            "columns": list(df.columns),
-        }
-
+        return {"status": "success", **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -130,47 +151,57 @@ async def ingest_data(request: DataIngestRequest):
 @app.post("/api/v1/backtests/run")
 async def run_backtest(request: BacktestRequest):
     try:
-        strategy = StrategyRegistry.create(request.strategy_name, **(request.parameters or {}))
-        if strategy is None:
-            raise HTTPException(status_code=404, detail="Strategy not found")
+        service = BacktestService()
+        result = service.run_backtest(
+            strategy_name=request.strategy_name,
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            timeframe=request.timeframe,
+            initial_capital=request.initial_capital,
+            commission=request.commission,
+            slippage=request.slippage,
+            parameters=request.parameters,
+        )
+        return {
+            "status": "success",
+            "backtest_id": result.backtest_id,
+            "strategy": result.strategy,
+            "symbol": result.symbol,
+            "data_source": result.data_source,
+            "results": {
+                "final_capital": result.final_capital,
+                "total_return": result.total_return,
+                "total_trades": result.total_trades,
+                "metrics": result.metrics,
+                "execution_time_ms": result.execution_time_ms,
+            },
+            "equity_curve": result.equity_curve,
+            "drawdown_series": result.drawdown_series,
+            "monthly_returns": result.monthly_returns,
+            "trades": result.trades[:10],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        try:
-            provider = YahooFinanceProvider()
-            df = provider.fetch_ohlcv(
-                symbol=request.symbol,
-                start_date=datetime.fromisoformat(request.start_date),
-                end_date=datetime.fromisoformat(request.end_date),
-                timeframe=request.timeframe,
-            )
-        except Exception:
-            start = datetime.fromisoformat(request.start_date)
-            end = datetime.fromisoformat(request.end_date)
-            n_days = (end - start).days
-            df = generate_sample_ohlcv(symbol=request.symbol, n_days=n_days)
 
-        config = BacktestConfig(
+@app.post("/api/v1/backtests/compare")
+async def compare_strategies(request: CompareRequest):
+    try:
+        service = BacktestService()
+        result = service.compare_strategies(
+            strategy_names=request.strategy_names,
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            timeframe=request.timeframe,
             initial_capital=request.initial_capital,
             commission=request.commission,
             slippage=request.slippage,
         )
-
-        engine = BacktestEngine(config)
-        result = engine.run(strategy, df)
-
-        return {
-            "status": "success",
-            "strategy": request.strategy_name,
-            "symbol": request.symbol,
-            "results": {
-                "final_capital": result.final_capital,
-                "total_return": result.total_return,
-                "total_trades": len(result.trades),
-                "metrics": result.metrics.to_dict(),
-                "execution_time_ms": result.execution_time_ms,
-            },
-            "trades": [t.to_dict() for t in result.trades[:10]],
-        }
-
+        return {"status": "success", **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

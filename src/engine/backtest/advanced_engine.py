@@ -1,0 +1,864 @@
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Optional, List, Dict, Any
+import pandas as pd
+import numpy as np
+
+from src.strategies.base import BaseStrategy
+from src.domain.entities.trade import Trade, TradeSide, TradeStatus
+from src.domain.entities.position import Position, PositionSide
+from src.domain.entities.metrics import RiskMetrics
+
+
+class OrderType(Enum):
+    MARKET = "market"
+    LIMIT = "limit"
+    STOP = "stop"
+
+
+class Order:
+    def __init__(
+        self,
+        order_type: OrderType,
+        side: str,
+        quantity: float,
+        price: Optional[float] = None,
+        stop_price: Optional[float] = None,
+    ):
+        self.order_type = order_type
+        self.side = side
+        self.quantity = quantity
+        self.price = price
+        self.stop_price = stop_price
+        self.filled = False
+        self.fill_price: Optional[float] = None
+        self.fill_time: Optional[datetime] = None
+
+
+@dataclass
+class RiskManagementConfig:
+    enable_stop_loss: bool = True
+    stop_loss_pct: float = 0.02
+    enable_take_profit: bool = True
+    take_profit_pct: float = 0.04
+    enable_trailing_stop: bool = False
+    trailing_stop_pct: float = 0.015
+    max_position_size: float = 0.2
+    max_daily_loss: float = 0.05
+    max_drawdown: float = 0.25
+
+
+@dataclass
+class AdvancedBacktestConfig:
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+    risk_per_trade: float = 0.02
+    max_position_size: float = 0.2
+    allow_shorting: bool = True
+    verbose: bool = False
+    risk_config: RiskManagementConfig = field(default_factory=RiskManagementConfig)
+
+
+@dataclass
+class BacktestConfig:
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+    risk_per_trade: float = 0.02
+    max_position_size: float = 0.2
+    allow_shorting: bool = True
+    verbose: bool = False
+    stop_loss_pct: Optional[float] = None
+    take_profit_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None
+    max_daily_loss: Optional[float] = None
+
+
+@dataclass
+class BacktestResult:
+    trades: List[Trade] = field(default_factory=list)
+    equity_curve: pd.DataFrame = field(default_factory=pd.DataFrame)
+    metrics: RiskMetrics = field(default_factory=RiskMetrics)
+    final_capital: float = 0.0
+    total_return: float = 0.0
+    execution_time_ms: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "trades": [t.to_dict() for t in self.trades],
+            "equity_curve": self.equity_curve.to_dict() if not self.equity_curve.empty else {},
+            "metrics": self.metrics.to_dict(),
+            "final_capital": self.final_capital,
+            "total_return": self.total_return,
+            "execution_time_ms": self.execution_time_ms,
+        }
+
+
+class BacktestEngine:
+    def __init__(self, config: Optional[BacktestConfig] = None):
+        self.config = config or BacktestConfig()
+        self._stop_loss_pct = self.config.stop_loss_pct
+        self._take_profit_pct = self.config.take_profit_pct
+        self._trailing_stop_pct = self.config.trailing_stop_pct
+        self._max_daily_loss = self.config.max_daily_loss
+        self._peak_capital = self.config.initial_capital
+        self._current_day = None
+        self._day_start_capital = self.config.initial_capital
+
+    def run(
+        self,
+        strategy: BaseStrategy,
+        data: pd.DataFrame,
+        config: Optional[BacktestConfig] = None,
+    ) -> BacktestResult:
+        start_time = datetime.now()
+
+        cfg = config or self.config
+        data = strategy.before_backtest(data)
+
+        signals = strategy.generate_signals(data)
+
+        trades = self._execute_signals(
+            signals=signals,
+            data=data,
+            strategy=strategy,
+            config=cfg,
+        )
+
+        equity_curve = self._calculate_equity_curve(trades, cfg.initial_capital, data)
+
+        metrics = RiskMetrics.from_trades(
+            trades=[t.to_dict() for t in trades],
+            initial_capital=cfg.initial_capital,
+            returns=equity_curve["returns"] if "returns" in equity_curve.columns else pd.Series(),
+        )
+
+        final_capital = cfg.initial_capital + sum(t.pnl for t in trades if t.pnl is not None)
+        total_return = (final_capital - cfg.initial_capital) / cfg.initial_capital
+
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        return BacktestResult(
+            trades=trades,
+            equity_curve=equity_curve,
+            metrics=metrics,
+            final_capital=final_capital,
+            total_return=total_return,
+            execution_time_ms=execution_time,
+        )
+
+    def _execute_signals(
+        self,
+        signals: pd.DataFrame,
+        data: pd.DataFrame,
+        strategy: BaseStrategy,
+        config: BacktestConfig,
+    ) -> List[Trade]:
+        trades = []
+        position: Optional[Position] = None
+        trailing_stop_price = None
+
+        for idx in range(len(signals)):
+            current_bar = data.iloc[idx]
+            signal = signals.iloc[idx].get("signal", 0)
+            timestamp = self._get_timestamp(current_bar, data, idx)
+            close_price = current_bar["close"]
+            high_price = current_bar.get("high", close_price)
+            low_price = current_bar.get("low", close_price)
+
+            if position is not None:
+                exit_trade = False
+                exit_reason = ""
+
+                if config.stop_loss_pct is not None:
+                    if position.side == PositionSide.LONG:
+                        stop_loss_price = position.entry_price * (1 - config.stop_loss_pct)
+                        if low_price <= stop_loss_price:
+                            exit_trade = True
+                            exit_reason = "stop_loss"
+                    else:
+                        stop_loss_price = position.entry_price * (1 + config.stop_loss_pct)
+                        if high_price >= stop_loss_price:
+                            exit_trade = True
+                            exit_reason = "stop_loss"
+
+                if config.take_profit_pct is not None and not exit_trade:
+                    if position.side == PositionSide.LONG:
+                        tp_price = position.entry_price * (1 + config.take_profit_pct)
+                        if high_price >= tp_price:
+                            exit_trade = True
+                            exit_reason = "take_profit"
+                    else:
+                        tp_price = position.entry_price * (1 - config.take_profit_pct)
+                        if low_price <= tp_price:
+                            exit_trade = True
+                            exit_reason = "take_profit"
+
+                if config.trailing_stop_pct is not None and not exit_trade:
+                    if position.side == PositionSide.LONG:
+                        if trailing_stop_price is None:
+                            trailing_stop_price = position.entry_price * (
+                                1 - config.trailing_stop_pct
+                            )
+                        else:
+                            new_stop = close_price * (1 - config.trailing_stop_pct)
+                            trailing_stop_price = max(trailing_stop_price, new_stop)
+                        if low_price <= trailing_stop_price:
+                            exit_trade = True
+                            exit_reason = "trailing_stop"
+                    else:
+                        if trailing_stop_price is None:
+                            trailing_stop_price = position.entry_price * (
+                                1 + config.trailing_stop_pct
+                            )
+                        else:
+                            new_stop = close_price * (1 + config.trailing_stop_pct)
+                            trailing_stop_price = min(trailing_stop_price, new_stop)
+                        if high_price >= trailing_stop_price:
+                            exit_trade = True
+                            exit_reason = "trailing_stop"
+
+                if not exit_trade:
+                    if position.side == PositionSide.LONG and signal == -1:
+                        exit_trade = True
+                        exit_reason = "signal"
+                    elif position.side == PositionSide.SHORT and signal == 1:
+                        exit_trade = True
+                        exit_reason = "signal"
+
+                if exit_trade:
+                    trade = self._close_position(
+                        position=position,
+                        exit_price=close_price,
+                        exit_timestamp=timestamp,
+                        config=config,
+                    )
+                    trades.append(trade)
+                    position = None
+                    trailing_stop_price = None
+
+                    if signal == 1:
+                        position = self._open_position(
+                            symbol=strategy.name,
+                            timestamp=timestamp,
+                            price=close_price,
+                            side=PositionSide.LONG,
+                            data=data,
+                            idx=idx,
+                            config=config,
+                        )
+                    elif signal == -1:
+                        position = self._open_position(
+                            symbol=strategy.name,
+                            timestamp=timestamp,
+                            price=close_price,
+                            side=PositionSide.SHORT,
+                            data=data,
+                            idx=idx,
+                            config=config,
+                        )
+            else:
+                if signal == 1 and config.allow_shorting:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.LONG,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                    )
+                elif signal == -1 and config.allow_shorting:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.SHORT,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                    )
+
+        if position is not None:
+            last_close = data.iloc[-1]["close"]
+            last_timestamp = data.index[-1]
+            trade = self._close_position(
+                position=position,
+                exit_price=last_close,
+                exit_timestamp=last_timestamp,
+                config=config,
+            )
+            trades.append(trade)
+
+        return trades
+
+    def _get_timestamp(self, current_bar, data: pd.DataFrame, idx: int):
+        if hasattr(current_bar, "name") and current_bar.name is not None:
+            ts = current_bar.name
+            if isinstance(ts, pd.Timestamp):
+                return ts.to_pydatetime()
+            return ts
+        return data.index[idx]
+
+    def _open_position(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        side: PositionSide,
+        data: pd.DataFrame,
+        idx: int,
+        config: BacktestConfig,
+    ) -> Position:
+        adjusted_price = self._apply_slippage(
+            price, config.slippage, "buy" if side == PositionSide.LONG else "sell"
+        )
+
+        capital = config.initial_capital
+        max_shares = int((capital * config.max_position_size) / adjusted_price)
+        quantity = max(1, max_shares)
+
+        position = Position(
+            symbol=symbol,
+            entry_time=timestamp,
+            entry_price=adjusted_price,
+            quantity=quantity,
+            side=side,
+            current_price=adjusted_price,
+        )
+
+        return position
+
+    def _close_position(
+        self,
+        position: Position,
+        exit_price: float,
+        exit_timestamp: datetime,
+        config: BacktestConfig,
+    ) -> Trade:
+        adjusted_exit_price = self._apply_slippage(
+            exit_price, config.slippage, "sell" if position.side == PositionSide.LONG else "buy"
+        )
+
+        commission = (
+            position.entry_price * position.quantity + adjusted_exit_price * position.quantity
+        ) * config.commission
+
+        slippage_cost = abs(exit_price - adjusted_exit_price) * position.quantity
+
+        trade = Trade(
+            symbol=position.symbol,
+            entry_time=position.entry_time,
+            entry_price=position.entry_price,
+            quantity=position.quantity,
+            side=TradeSide.LONG if position.side == PositionSide.LONG else TradeSide.SHORT,
+            exit_time=exit_timestamp,
+            exit_price=adjusted_exit_price,
+            status=TradeStatus.CLOSED,
+            commission=commission,
+            slippage=slippage_cost,
+        )
+
+        return trade
+
+    def _apply_slippage(self, price: float, slippage_pct: float, side: str) -> float:
+        if side == "buy":
+            return price * (1 + slippage_pct)
+        return price * (1 - slippage_pct)
+
+    def _calculate_equity_curve(
+        self,
+        trades: List[Trade],
+        initial_capital: float,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        if not trades:
+            return pd.DataFrame(columns=["timestamp", "equity", "returns", "drawdown"])
+
+        equity_data = []
+        current_capital = initial_capital
+
+        timestamps = data.index.tolist()
+
+        trade_idx = 0
+        for timestamp in timestamps:
+            while trade_idx < len(trades) and trades[trade_idx].exit_time <= timestamp:
+                current_capital += trades[trade_idx].pnl if trades[trade_idx].pnl else 0
+                trade_idx += 1
+
+            equity_data.append(
+                {
+                    "timestamp": timestamp,
+                    "equity": current_capital,
+                }
+            )
+
+        df = pd.DataFrame(equity_data)
+        df = df.set_index("timestamp")
+
+        df["returns"] = df["equity"].pct_change().fillna(0)
+
+        cumulative_returns = (1 + df["returns"]).cumprod()
+        running_max = cumulative_returns.cummax()
+        df["drawdown"] = (cumulative_returns - running_max) / running_max
+
+        df["equity"] = initial_capital * cumulative_returns
+
+        return df
+
+
+class AdvancedBacktestEngine:
+    def __init__(self, config: Optional[AdvancedBacktestConfig] = None):
+        self.config = config or AdvancedBacktestConfig()
+
+    def run(
+        self,
+        strategy: BaseStrategy,
+        data: pd.DataFrame,
+        config: Optional[AdvancedBacktestConfig] = None,
+    ) -> BacktestResult:
+        start_time = datetime.now()
+
+        cfg = config or self.config
+        data = strategy.before_backtest(data)
+
+        signals = strategy.generate_signals(data)
+
+        trades = self._execute_advanced_signals(
+            signals=signals,
+            data=data,
+            strategy=strategy,
+            config=cfg,
+        )
+
+        equity_curve = self._calculate_equity_curve(trades, cfg.initial_capital, data)
+
+        metrics = RiskMetrics.from_trades(
+            trades=[t.to_dict() for t in trades],
+            initial_capital=cfg.initial_capital,
+            returns=equity_curve["returns"] if "returns" in equity_curve.columns else pd.Series(),
+        )
+
+        final_capital = cfg.initial_capital + sum(t.pnl for t in trades if t.pnl is not None)
+        total_return = (final_capital - cfg.initial_capital) / cfg.initial_capital
+
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        return BacktestResult(
+            trades=trades,
+            equity_curve=equity_curve,
+            metrics=metrics,
+            final_capital=final_capital,
+            total_return=total_return,
+            execution_time_ms=execution_time,
+        )
+
+    def _execute_advanced_signals(
+        self,
+        signals: pd.DataFrame,
+        data: pd.DataFrame,
+        strategy: BaseStrategy,
+        config: AdvancedBacktestConfig,
+    ) -> List[Trade]:
+        trades = []
+        position: Optional[Position] = None
+        trailing_stop_price = None
+        entry_high = 0.0
+        entry_low = float("inf")
+
+        risk = config.risk_config
+
+        for idx in range(len(signals)):
+            current_bar = data.iloc[idx]
+            signal = signals.iloc[idx].get("signal", 0)
+            timestamp = self._get_timestamp(current_bar, data, idx)
+            close_price = current_bar["close"]
+            high_price = current_bar.get("high", close_price)
+            low_price = current_bar.get("low", close_price)
+
+            if position is not None:
+                if position.side == PositionSide.LONG:
+                    entry_high = max(entry_high, high_price)
+                else:
+                    entry_low = min(entry_low, low_price)
+
+                exit_trade = False
+                exit_reason = ""
+
+                if risk.enable_stop_loss:
+                    if position.side == PositionSide.LONG:
+                        stop_price = position.entry_price * (1 - risk.stop_loss_pct)
+                        if low_price <= stop_price:
+                            exit_trade = True
+                            exit_reason = "stop_loss"
+                    else:
+                        stop_price = position.entry_price * (1 + risk.stop_loss_pct)
+                        if high_price >= stop_price:
+                            exit_trade = True
+                            exit_reason = "stop_loss"
+
+                if risk.enable_take_profit and not exit_trade:
+                    if position.side == PositionSide.LONG:
+                        tp_price = position.entry_price * (1 + risk.take_profit_pct)
+                        if high_price >= tp_price:
+                            exit_trade = True
+                            exit_reason = "take_profit"
+                    else:
+                        tp_price = position.entry_price * (1 - risk.take_profit_pct)
+                        if low_price <= tp_price:
+                            exit_trade = True
+                            exit_reason = "take_profit"
+
+                if risk.enable_trailing_stop and not exit_trade:
+                    if position.side == PositionSide.LONG:
+                        if trailing_stop_price is None:
+                            trailing_stop_price = entry_high * (1 - risk.trailing_stop_pct)
+                        else:
+                            new_stop = entry_high * (1 - risk.trailing_stop_pct)
+                            trailing_stop_price = max(trailing_stop_price, new_stop)
+                        if low_price <= trailing_stop_price:
+                            exit_trade = True
+                            exit_reason = "trailing_stop"
+                    else:
+                        if trailing_stop_price is None:
+                            trailing_stop_price = entry_low * (1 + risk.trailing_stop_pct)
+                        else:
+                            new_stop = entry_low * (1 + risk.trailing_stop_pct)
+                            trailing_stop_price = min(trailing_stop_price, new_stop)
+                        if high_price >= trailing_stop_price:
+                            exit_trade = True
+                            exit_reason = "trailing_stop"
+
+                if not exit_trade:
+                    if position.side == PositionSide.LONG and signal == -1:
+                        exit_trade = True
+                        exit_reason = "signal"
+                    elif position.side == PositionSide.SHORT and signal == 1:
+                        exit_trade = True
+                        exit_reason = "signal"
+
+                if exit_trade:
+                    trade = self._close_position(
+                        position=position,
+                        exit_price=close_price,
+                        exit_timestamp=timestamp,
+                        config=config,
+                    )
+                    trades.append(trade)
+                    position = None
+                    trailing_stop_price = None
+                    entry_high = 0.0
+                    entry_low = float("inf")
+
+                    if signal == 1:
+                        position = self._open_position(
+                            symbol=strategy.name,
+                            timestamp=timestamp,
+                            price=close_price,
+                            side=PositionSide.LONG,
+                            data=data,
+                            idx=idx,
+                            config=config,
+                        )
+                        if position:
+                            entry_high = close_price
+                            entry_low = close_price
+                    elif signal == -1:
+                        position = self._open_position(
+                            symbol=strategy.name,
+                            timestamp=timestamp,
+                            price=close_price,
+                            side=PositionSide.SHORT,
+                            data=data,
+                            idx=idx,
+                            config=config,
+                        )
+                        if position:
+                            entry_high = close_price
+                            entry_low = close_price
+            else:
+                if signal == 1 and config.allow_shorting:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.LONG,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                    )
+                    if position:
+                        entry_high = close_price
+                        entry_low = close_price
+                elif signal == -1 and config.allow_shorting:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.SHORT,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                    )
+                    if position:
+                        entry_high = close_price
+                        entry_low = close_price
+
+        if position is not None:
+            last_close = data.iloc[-1]["close"]
+            last_timestamp = data.index[-1]
+            trade = self._close_position(
+                position=position,
+                exit_price=last_close,
+                exit_timestamp=last_timestamp,
+                config=config,
+            )
+            trades.append(trade)
+
+        return trades
+
+    def _get_timestamp(self, current_bar, data: pd.DataFrame, idx: int):
+        if hasattr(current_bar, "name") and current_bar.name is not None:
+            ts = current_bar.name
+            if isinstance(ts, pd.Timestamp):
+                return ts.to_pydatetime()
+            return ts
+        return data.index[idx]
+
+    def _open_position(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        side: PositionSide,
+        data: pd.DataFrame,
+        idx: int,
+        config: AdvancedBacktestConfig,
+    ) -> Optional[Position]:
+        adjusted_price = self._apply_slippage(
+            price, config.slippage, "buy" if side == PositionSide.LONG else "sell"
+        )
+
+        capital = config.initial_capital
+        max_shares = int((capital * config.risk_config.max_position_size) / adjusted_price)
+        quantity = max(1, max_shares)
+
+        position = Position(
+            symbol=symbol,
+            entry_time=timestamp,
+            entry_price=adjusted_price,
+            quantity=quantity,
+            side=side,
+            current_price=adjusted_price,
+        )
+
+        return position
+
+    def _close_position(
+        self,
+        position: Position,
+        exit_price: float,
+        exit_timestamp: datetime,
+        config: AdvancedBacktestConfig,
+    ) -> Trade:
+        adjusted_exit_price = self._apply_slippage(
+            exit_price, config.slippage, "sell" if position.side == PositionSide.LONG else "buy"
+        )
+
+        commission = (
+            position.entry_price * position.quantity + adjusted_exit_price * position.quantity
+        ) * config.commission
+
+        slippage_cost = abs(exit_price - adjusted_exit_price) * position.quantity
+
+        trade = Trade(
+            symbol=position.symbol,
+            entry_time=position.entry_time,
+            entry_price=position.entry_price,
+            quantity=position.quantity,
+            side=TradeSide.LONG if position.side == PositionSide.LONG else TradeSide.SHORT,
+            exit_time=exit_timestamp,
+            exit_price=adjusted_exit_price,
+            status=TradeStatus.CLOSED,
+            commission=commission,
+            slippage=slippage_cost,
+        )
+
+        return trade
+
+    def _apply_slippage(self, price: float, slippage_pct: float, side: str) -> float:
+        if side == "buy":
+            return price * (1 + slippage_pct)
+        return price * (1 - slippage_pct)
+
+    def _calculate_equity_curve(
+        self,
+        trades: List[Trade],
+        initial_capital: float,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        if not trades:
+            return pd.DataFrame(columns=["timestamp", "equity", "returns", "drawdown"])
+
+        equity_data = []
+        current_capital = initial_capital
+
+        timestamps = data.index.tolist()
+
+        trade_idx = 0
+        for timestamp in timestamps:
+            while trade_idx < len(trades) and trades[trade_idx].exit_time <= timestamp:
+                current_capital += trades[trade_idx].pnl if trades[trade_idx].pnl else 0
+                trade_idx += 1
+
+            equity_data.append(
+                {
+                    "timestamp": timestamp,
+                    "equity": current_capital,
+                }
+            )
+
+        df = pd.DataFrame(equity_data)
+        df = df.set_index("timestamp")
+
+        df["returns"] = df["equity"].pct_change().fillna(0)
+
+        cumulative_returns = (1 + df["returns"]).cumprod()
+        running_max = cumulative_returns.cummax()
+        df["drawdown"] = (cumulative_returns - running_max) / running_max
+
+        df["equity"] = initial_capital * cumulative_returns
+
+        return df
+
+
+class VectorizedBacktestEngine(BacktestEngine):
+    def run(
+        self,
+        strategy: BaseStrategy,
+        data: pd.DataFrame,
+        config: Optional[BacktestConfig] = None,
+    ) -> BacktestResult:
+        start_time = datetime.now()
+
+        cfg = config or self.config
+
+        signals = strategy.generate_signals(data)
+
+        positions = (signals["signal"] != 0).astype(int)
+        position_changes = signals["signal"].diff().fillna(0)
+
+        returns = data["close"].pct_change().fillna(0)
+
+        strategy_returns = positions.shift(1).fillna(0) * returns
+
+        commission_cost = abs(position_changes) * cfg.commission
+        strategy_returns = strategy_returns - commission_cost
+
+        capital = cfg.initial_capital
+        equity = (1 + strategy_returns).cumprod() * capital
+
+        final_capital = equity.iloc[-1] if not equity.empty else capital
+        total_return = (final_capital - capital) / capital
+
+        equity_curve = pd.DataFrame(
+            {
+                "timestamp": data.index,
+                "equity": equity.values,
+                "returns": strategy_returns.values,
+            }
+        ).set_index("timestamp")
+
+        equity_curve["cumulative"] = (1 + equity_curve["returns"]).cumprod()
+        equity_curve["running_max"] = equity_curve["cumulative"].cummax()
+        equity_curve["drawdown"] = (
+            equity_curve["cumulative"] - equity_curve["running_max"]
+        ) / equity_curve["running_max"]
+
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        trades = self._extract_trades_from_signals(signals, data, cfg)
+
+        metrics = RiskMetrics.from_trades(
+            trades=[t.to_dict() for t in trades],
+            initial_capital=cfg.initial_capital,
+            returns=equity_curve["returns"],
+        )
+
+        return BacktestResult(
+            trades=trades,
+            equity_curve=equity_curve,
+            metrics=metrics,
+            final_capital=final_capital,
+            total_return=total_return,
+            execution_time_ms=execution_time,
+        )
+
+    def _extract_trades_from_signals(
+        self,
+        signals: pd.DataFrame,
+        data: pd.DataFrame,
+        config: BacktestConfig,
+    ) -> List[Trade]:
+        trades = []
+        position_side = None
+        entry_price = None
+        entry_time = None
+
+        for idx in range(len(signals)):
+            signal = signals.iloc[idx]["signal"]
+            timestamp = signals.index[idx]
+            close_price = data.iloc[idx]["close"]
+
+            if position_side is None:
+                if signal == 1:
+                    position_side = "LONG"
+                    entry_price = close_price
+                    entry_time = timestamp
+                elif signal == -1:
+                    position_side = "SHORT"
+                    entry_price = close_price
+                    entry_time = timestamp
+            else:
+                should_exit = False
+                if position_side == "LONG" and signal == -1:
+                    should_exit = True
+                elif position_side == "SHORT" and signal == 1:
+                    should_exit = True
+
+                if should_exit:
+                    trade_value = close_price * 1
+                    commission = trade_value * config.commission
+
+                    pnl = (
+                        (close_price - entry_price) - commission
+                        if position_side == "LONG"
+                        else (entry_price - close_price) - commission
+                    )
+
+                    trade = Trade(
+                        symbol="strategy",
+                        entry_time=entry_time,
+                        entry_price=entry_price,
+                        quantity=1,
+                        side=TradeSide[position_side],
+                        exit_time=timestamp,
+                        exit_price=close_price,
+                        status=TradeStatus.CLOSED,
+                        commission=commission,
+                    )
+                    trades.append(trade)
+                    position_side = None
+
+                    if signal == 1:
+                        position_side = "LONG"
+                        entry_price = close_price
+                        entry_time = timestamp
+                    elif signal == -1:
+                        position_side = "SHORT"
+                        entry_price = close_price
+                        entry_time = timestamp
+
+        return trades
