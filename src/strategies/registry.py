@@ -1,14 +1,22 @@
+import importlib
+import logging
+import pkgutil
+from pathlib import Path
 from typing import Dict, Type, Optional, List
 
 from src.strategies.base import BaseStrategy
 
+logger = logging.getLogger(__name__)
+
 
 class StrategyRegistry:
     _strategies: Dict[str, Type[BaseStrategy]] = {}
+    _initialized: bool = False
 
     @classmethod
     def register(cls, name: str, strategy_class: Type[BaseStrategy]) -> None:
         cls._strategies[name] = strategy_class
+        logger.debug(f"Registered strategy: {name}")
 
     @classmethod
     def get(cls, name: str) -> Optional[Type[BaseStrategy]]:
@@ -42,8 +50,57 @@ class StrategyRegistry:
                 info.append(strategy_info)
         return info
 
+    @classmethod
+    def auto_discover(cls, base_path: Optional[Path] = None) -> None:
+        if cls._initialized:
+            return
 
-def register_strategy(name: str):
+        if base_path is None:
+            base_path = Path(__file__).parent
+
+        strategy_dirs = ["momentum", "breakout", "volatility", "mean_reversion"]
+
+        for dir_name in strategy_dirs:
+            dir_path = base_path / dir_name
+            if not dir_path.exists():
+                continue
+
+            for _, module_name, _ in pkgutil.iter_modules([str(dir_path)]):
+                try:
+                    module = importlib.import_module(f"src.strategies.{dir_name}.{module_name}")
+                    logger.info(f"Auto-discovered strategies from: {dir_name}.{module_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to import {dir_name}.{module_name}: {e}")
+
+        cls._initialized = True
+        logger.info(f"Auto-discovery complete. Found {len(cls._strategies)} strategies.")
+
+    @classmethod
+    def validate_parameters(cls, name: str, params: Dict) -> tuple[bool, Optional[str]]:
+        strategy_class = cls.get(name)
+        if strategy_class is None:
+            return False, f"Strategy '{name}' not found"
+
+        strategy = strategy_class()
+        required_params = strategy.get_parameters()
+
+        for param_name in required_params:
+            if param_name not in params:
+                return False, f"Missing required parameter: {param_name}"
+
+            param_def = required_params[param_name]
+            if hasattr(param_def, "min_value") and param_def.min_value is not None:
+                if params[param_name] < param_def.min_value:
+                    return False, f"Parameter '{param_name}' below minimum: {param_def.min_value}"
+
+            if hasattr(param_def, "max_value") and param_def.max_value is not None:
+                if params[param_name] > param_def.max_value:
+                    return False, f"Parameter '{param_name}' above maximum: {param_def.max_value}"
+
+        return True, None
+
+
+def register_strategy(name: str, version: str = "1.0.0"):
     def decorator(strategy_class: Type[BaseStrategy]):
         StrategyRegistry.register(name, strategy_class)
         return strategy_class
