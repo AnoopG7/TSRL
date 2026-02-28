@@ -4,10 +4,13 @@ AI-Powered Trading Strategy Research Platform for quantitative trading research.
 
 ## Features
 
-- **Data Ingestion** - Fetch OHLCV data from Yahoo Finance & NSE India
-- **Strategy Engine** - Plugin-based strategy system with built-in strategies
-- **Backtesting** - Event-driven & vectorized backtesting with commission/slippage modeling
-- **Risk Analytics** - Comprehensive risk metrics (Sharpe, Sortino, Drawdown, etc.)
+- **Data Ingestion** - Fetch OHLCV data from Yahoo Finance, NSE India & Alpha Vantage with caching
+- **Strategy Engine** - Plugin-based strategy system with 10+ built-in strategies
+- **Backtesting** - Event-driven & vectorized backtesting with commission/slippage/stop-loss/take-profit
+- **Risk Analytics** - Comprehensive risk metrics (Sharpe, Sortino, Drawdown, Kelly, VaR, CVaR, Omega, etc.)
+- **Strategy Optimization** - Grid Search, Random Search, and Genetic Algorithm optimizers
+- **Walk-Forward Analysis** - Rolling and expanding window validation
+- **Machine Learning** - Feature engineering (116 features) with Random Forest and Gradient Boosting strategies
 - **REST API** - FastAPI-based API for all operations
 - **Modern UI** - React + Tailwind + Shadcn dashboard
 
@@ -72,6 +75,15 @@ curl -X POST http://localhost:8000/api/v1/backtests/run \
 | `ema_crossover` | Momentum | EMA crossover signals |
 | `rsi_mean_reversion` | Mean Reversion | RSI oversold/overbought |
 | `breakout` | Breakout | Price breakout from highs/lows |
+| `macd` | Momentum | MACD crossover signals |
+| `ma_ribbon` | Momentum | Multiple MA ribbon strategy |
+| `triple_ma` | Momentum | Triple moving average |
+| `volume_profile` | Volume | Volume-based support/resistance |
+| `volume_breakout` | Volume | Volume surge breakout |
+| `bollinger_bands` | Mean Reversion | Bollinger Bands bounce |
+| `bollinger_breakout` | Breakout | Bollinger Bands breakout |
+| `ml_random_forest` | ML | Random Forest classifier |
+| `ml_gradient_boosting` | ML | Gradient Boosting classifier |
 
 ### API Endpoints
 
@@ -83,6 +95,10 @@ curl -X POST http://localhost:8000/api/v1/backtests/run \
 | GET | `/api/v1/strategies/{name}` | Strategy details |
 | POST | `/api/v1/data/ingest` | Fetch OHLCV data |
 | POST | `/api/v1/backtests/run` | Run backtest |
+| POST | `/api/v1/optimization/grid` | Grid search optimization |
+| POST | `/api/v1/optimization/random` | Random search optimization |
+| POST | `/api/v1/optimization/genetic` | Genetic algorithm optimization |
+| POST | `/api/v1/walkforward/run` | Walk-forward analysis |
 
 ## Project Structure
 
