@@ -67,7 +67,11 @@ class BaseStrategy(ABC):
     def set_parameters(self, **params) -> None:
         for key, value in params.items():
             if key in self._params:
-                self._params[key] = value
+                current = self._params[key]
+                if hasattr(current, 'value'):
+                    current.value = value
+                else:
+                    self._params[key] = value
 
     def _validate_parameters(self) -> bool:
         return True

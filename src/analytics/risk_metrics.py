@@ -52,7 +52,7 @@ class RiskMetricsCalculator:
     @staticmethod
     def calculate_max_drawdown(equity_curve: pd.Series) -> tuple[float, pd.Timestamp, pd.Timestamp]:
         if len(equity_curve) < 2:
-            return 0.0, pd.Timestamp, pd.Timestamp
+            return 0.0, pd.NaT, pd.NaT
 
         running_max = equity_curve.cummax()
         drawdown = (equity_curve - running_max) / running_max

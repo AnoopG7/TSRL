@@ -96,6 +96,7 @@ class BacktestEngine:
     ) -> List[Trade]:
         trades = []
         position: Optional[Position] = None
+        running_capital = config.initial_capital
 
         for idx in range(len(signals)):
             current_bar = data.iloc[idx]
@@ -104,7 +105,7 @@ class BacktestEngine:
             close_price = current_bar["close"]
 
             if position is None:
-                if signal == 1 and config.allow_shorting:
+                if signal == 1:
                     position = self._open_position(
                         symbol=strategy.name,
                         timestamp=timestamp,
@@ -113,6 +114,7 @@ class BacktestEngine:
                         data=data,
                         idx=idx,
                         config=config,
+                        capital=running_capital,
                     )
                 elif signal == -1 and config.allow_shorting:
                     position = self._open_position(
@@ -123,6 +125,7 @@ class BacktestEngine:
                         data=data,
                         idx=idx,
                         config=config,
+                        capital=running_capital,
                     )
             else:
                 exit_trade = False
@@ -140,6 +143,8 @@ class BacktestEngine:
                         config=config,
                     )
                     trades.append(trade)
+                    if trade.pnl is not None:
+                        running_capital += trade.pnl
                     position = None
 
                     if signal == 1:
@@ -151,8 +156,9 @@ class BacktestEngine:
                             data=data,
                             idx=idx,
                             config=config,
+                            capital=running_capital,
                         )
-                    elif signal == -1:
+                    elif signal == -1 and config.allow_shorting:
                         position = self._open_position(
                             symbol=strategy.name,
                             timestamp=timestamp,
@@ -161,6 +167,7 @@ class BacktestEngine:
                             data=data,
                             idx=idx,
                             config=config,
+                            capital=running_capital,
                         )
 
         if position is not None:
@@ -185,13 +192,14 @@ class BacktestEngine:
         data: pd.DataFrame,
         idx: int,
         config: BacktestConfig,
+        capital: Optional[float] = None,
     ) -> Position:
         adjusted_price = self._apply_slippage(
             price, config.slippage, "buy" if side == PositionSide.LONG else "sell"
         )
 
-        capital = config.initial_capital
-        max_shares = int((capital * config.max_position_size) / adjusted_price)
+        available_capital = capital if capital is not None else config.initial_capital
+        max_shares = int((available_capital * config.max_position_size) / adjusted_price)
         quantity = max(1, max_shares)
 
         position = Position(
