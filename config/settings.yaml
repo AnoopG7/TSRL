@@ -12,13 +12,25 @@ data_providers:
   yahoo:
     enabled: true
     default_timeframe: "1d"
-    max_retries: 3
-    retry_delay: 1
+    max_retries: 5
+    retry_delay: 2
   nse:
     enabled: true
     default_timeframe: "1d"
     max_retries: 3
     retry_delay: 1
+  alpha_vantage:
+    enabled: false
+    api_key: ""
+    default_timeframe: "1d"
+    max_retries: 3
+    retry_delay: 1
+
+# Cache settings
+cache:
+  enabled: true
+  ttl_hours: 24
+  cache_dir: "data/cache"
 
 # Backtest configuration
 backtest:

@@ -32,6 +32,12 @@ class DataProvidersConfig(BaseModel):
     nse: NSEConfig = NSEConfig()
 
 
+class CacheConfig(BaseModel):
+    enabled: bool = True
+    ttl_hours: int = 24
+    cache_dir: str = "data/cache"
+
+
 class BacktestConfig(BaseModel):
     default_capital: float = 100000.0
     default_commission: float = 0.001
@@ -90,6 +96,7 @@ class Settings(BaseSettings):
 
     database: DatabaseConfig = DatabaseConfig()
     data_providers: DataProvidersConfig = DataProvidersConfig()
+    cache: CacheConfig = CacheConfig()
     backtest: BacktestConfig = BacktestConfig()
     risk: RiskConfig = RiskConfig()
     optimization: OptimizationConfig = OptimizationConfig()
