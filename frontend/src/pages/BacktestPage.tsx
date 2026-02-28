@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Target, AlertCircle, DollarSign, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Target, AlertCircle, DollarSign, TrendingUp, TrendingDown, Activity, BarChart3, LineChart } from 'lucide-react';
 import { BacktestConfigSchema } from '../lib/schemas';
 import type { BacktestConfig, Strategy } from '../lib/schemas';
 import { useBacktestStore } from '../store';
+import { EquityCurveChart, DrawdownChart, MonthlyReturnsHeatmap } from '../components/charts';
 
 interface BacktestPageProps {
   strategies: Strategy[];
@@ -16,7 +18,8 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
   onRunBacktest,
   onGenerateDemo,
 }) => {
-  const { result, trades, loading, error } = useBacktestStore();
+  const { result, trades, loading, error, equityCurve, drawdownSeries, monthlyReturns } = useBacktestStore();
+  const [chartTab, setChartTab] = useState<'equity' | 'drawdown' | 'monthly'>('equity');
 
   const {
     register,
@@ -37,8 +40,11 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
     await onRunBacktest(data);
   };
 
+  const hasChartData = equityCurve.length > 0 || drawdownSeries.length > 0 || monthlyReturns.length > 0;
+
   return (
     <div className="animate-fadeIn">
+      {/* Configuration Form */}
       <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
         <div className="card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
@@ -49,9 +55,9 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: 'var(--spacing-md)',
               marginBottom: 'var(--spacing-lg)'
             }}>
@@ -70,48 +76,23 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
               </div>
               <div className="form-group">
                 <label className="form-label">Symbol</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  {...register('symbol')}
-                  placeholder="AAPL"
-                />
-                {errors.symbol && (
-                  <span className="form-error">{errors.symbol.message}</span>
-                )}
+                <input type="text" className="form-input" {...register('symbol')} placeholder="AAPL" />
+                {errors.symbol && <span className="form-error">{errors.symbol.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Start Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  {...register('start_date')}
-                />
-                {errors.start_date && (
-                  <span className="form-error">{errors.start_date.message}</span>
-                )}
+                <input type="date" className="form-input" {...register('start_date')} />
+                {errors.start_date && <span className="form-error">{errors.start_date.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">End Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  {...register('end_date')}
-                />
-                {errors.end_date && (
-                  <span className="form-error">{errors.end_date.message}</span>
-                )}
+                <input type="date" className="form-input" {...register('end_date')} />
+                {errors.end_date && <span className="form-error">{errors.end_date.message}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Initial Capital</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  {...register('initial_capital', { valueAsNumber: true })}
-                />
-                {errors.initial_capital && (
-                  <span className="form-error">{errors.initial_capital.message}</span>
-                )}
+                <input type="number" className="form-input" {...register('initial_capital', { valueAsNumber: true })} />
+                {errors.initial_capital && <span className="form-error">{errors.initial_capital.message}</span>}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
@@ -134,58 +115,72 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
 
       {result && (
         <>
+          {/* Performance Summary */}
           <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
             <div className="card-header">
               <h2 className="card-title">Performance Summary</h2>
             </div>
             <div className="card-content">
               <div className="metric-grid">
-                <MetricCard
-                  label="Final Capital"
-                  value={`$${result.final_capital.toLocaleString()}`}
-                  icon={<DollarSign size={16} />}
-                />
-                <MetricCard
-                  label="Total Return"
-                  value={`${(result.total_return * 100).toFixed(2)}%`}
+                <MetricCard label="Final Capital" value={`$${result.final_capital.toLocaleString()}`} icon={<DollarSign size={16} />} />
+                <MetricCard label="Total Return" value={`${(result.total_return * 100).toFixed(2)}%`}
                   icon={result.total_return >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  positive={result.total_return >= 0}
-                  negative={result.total_return < 0}
-                />
-                <MetricCard
-                  label="Total Trades"
-                  value={result.total_trades.toString()}
-                  icon={<Activity size={16} />}
-                />
-                <MetricCard
-                  label="Sharpe Ratio"
-                  value={result.metrics.sharpe_ratio.toFixed(2)}
-                  positive={result.metrics.sharpe_ratio >= 0}
-                  negative={result.metrics.sharpe_ratio < 0}
-                />
-                <MetricCard
-                  label="Max Drawdown"
-                  value={`${result.metrics.max_drawdown_pct.toFixed(2)}%`}
-                  negative
-                />
-                <MetricCard
-                  label="Win Rate"
-                  value={`${(result.metrics.win_rate * 100).toFixed(1)}%`}
-                />
-                <MetricCard
-                  label="Sortino Ratio"
-                  value={result.metrics.sortino_ratio.toFixed(2)}
-                  positive={result.metrics.sortino_ratio >= 0}
-                  negative={result.metrics.sortino_ratio < 0}
-                />
-                <MetricCard
-                  label="Profit Factor"
-                  value={result.metrics.profit_factor.toFixed(2)}
-                />
+                  positive={result.total_return >= 0} negative={result.total_return < 0} />
+                <MetricCard label="Total Trades" value={result.total_trades.toString()} icon={<Activity size={16} />} />
+                <MetricCard label="Sharpe Ratio" value={result.metrics.sharpe_ratio.toFixed(2)}
+                  positive={result.metrics.sharpe_ratio >= 0} negative={result.metrics.sharpe_ratio < 0} />
+                <MetricCard label="Max Drawdown" value={`${result.metrics.max_drawdown_pct.toFixed(2)}%`} negative />
+                <MetricCard label="Win Rate" value={`${(result.metrics.win_rate * 100).toFixed(1)}%`} />
+                <MetricCard label="Sortino Ratio" value={result.metrics.sortino_ratio.toFixed(2)}
+                  positive={result.metrics.sortino_ratio >= 0} negative={result.metrics.sortino_ratio < 0} />
+                <MetricCard label="Profit Factor" value={result.metrics.profit_factor.toFixed(2)} />
               </div>
             </div>
           </section>
 
+          {/* Charts Section */}
+          {hasChartData && (
+            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <div className="card-header">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 className="card-title">Analytics</h2>
+                  <div className="tab-nav">
+                    <button
+                      className={`tab-item ${chartTab === 'equity' ? 'tab-active' : ''}`}
+                      onClick={() => setChartTab('equity')}
+                    >
+                      <LineChart size={14} /> Equity Curve
+                    </button>
+                    <button
+                      className={`tab-item ${chartTab === 'drawdown' ? 'tab-active' : ''}`}
+                      onClick={() => setChartTab('drawdown')}
+                    >
+                      <TrendingDown size={14} /> Drawdown
+                    </button>
+                    <button
+                      className={`tab-item ${chartTab === 'monthly' ? 'tab-active' : ''}`}
+                      onClick={() => setChartTab('monthly')}
+                    >
+                      <BarChart3 size={14} /> Monthly Returns
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="card-content">
+                {chartTab === 'equity' && equityCurve.length > 0 && (
+                  <EquityCurveChart data={equityCurve} initialCapital={result.final_capital / (1 + result.total_return)} />
+                )}
+                {chartTab === 'drawdown' && drawdownSeries.length > 0 && (
+                  <DrawdownChart data={drawdownSeries} />
+                )}
+                {chartTab === 'monthly' && monthlyReturns.length > 0 && (
+                  <MonthlyReturnsHeatmap data={monthlyReturns} />
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Trades Table */}
           <section className="card">
             <div className="card-header">
               <h2 className="card-title">Recent Trades</h2>
