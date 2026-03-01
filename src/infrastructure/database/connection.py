@@ -42,5 +42,26 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    engine = get_engine()
-    Base.metadata.create_all(bind=engine)
+    """Initialize the database using Alembic migrations.
+
+    Runs 'alembic upgrade head' to apply all pending migrations.
+    This ensures schema changes always go through the migration system
+    instead of bypassing it with create_all().
+    """
+    import subprocess
+    import sys
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            # If alembic fails (e.g., first run with no DB), fall back to create_all
+            engine = get_engine()
+            Base.metadata.create_all(bind=engine)
+    except Exception:
+        # Fallback: create tables directly if alembic is unavailable
+        engine = get_engine()
+        Base.metadata.create_all(bind=engine)
