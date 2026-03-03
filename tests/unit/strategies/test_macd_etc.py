@@ -183,14 +183,12 @@ class TestMovingAverageRibbonStrategy:
         assert strategy.get_parameter("slow_period").value == 50
 
     def test_parameter_validation_fast_medium(self):
-        # MovingAverageRibbonStrategy validates at parameter level
-        strategy = MovingAverageRibbonStrategy(fast_period=25, medium_period=20)
-        assert strategy is not None
+        with pytest.raises(ValueError, match="fast_period must be less than medium_period"):
+            MovingAverageRibbonStrategy(fast_period=25, medium_period=20)
 
     def test_parameter_validation_medium_slow(self):
-        # MovingAverageRibbonStrategy validates at parameter level
-        strategy = MovingAverageRibbonStrategy(medium_period=60, slow_period=50)
-        assert strategy is not None
+        with pytest.raises(ValueError, match="medium_period must be less than slow_period"):
+            MovingAverageRibbonStrategy(medium_period=60, slow_period=50)
 
     def test_generate_signals(self):
         strategy = MovingAverageRibbonStrategy(fast_period=3, medium_period=5, slow_period=7)
@@ -232,9 +230,8 @@ class TestTripleMAStrategy:
         assert strategy.get_parameter("slow_period").value == 50
 
     def test_parameter_validation(self):
-        # TripleMAStrategy validates at parameter level
-        strategy = TripleMAStrategy(fast_period=35, medium_period=30)
-        assert strategy is not None
+        with pytest.raises(ValueError, match="fast_period must be less than medium_period"):
+            TripleMAStrategy(fast_period=35, medium_period=30)
 
     def test_generate_signals(self):
         strategy = TripleMAStrategy(fast_period=3, medium_period=5, slow_period=7)
@@ -361,13 +358,10 @@ class TestBollingerBandsBreakoutStrategy:
 
     def test_generate_signals_breakout_above_upper(self):
         """Test buy signal when price breaks above upper band"""
-        strategy = BollingerBandsBreakoutStrategy(period=5, std_dev=2.0)
+        strategy = BollingerBandsBreakoutStrategy(period=5, std_dev=1.0)
 
-        # generate_signals uses _params["period"].value (default=20), so need 20+ points
-        # Fluctuating data with a big spike at the end triggers breakout
-        prices = [100, 102, 99, 101, 100, 99, 101, 100, 102, 99,
-                  100, 101, 100, 99, 101, 100, 102, 99, 100, 101,
-                  100, 99, 101, 100, 99, 115]
+        # Stable alternating data keeps bands tight, then a big spike breaks out
+        prices = [100, 100.5, 100, 100.5, 100, 100.5, 100, 100.5, 100, 110]
         data = pd.DataFrame(
             {"close": prices},
             index=pd.date_range("2023-01-01", periods=len(prices)),

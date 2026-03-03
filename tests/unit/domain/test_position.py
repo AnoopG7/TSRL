@@ -203,3 +203,23 @@ class TestPosition:
         assert d["side"] == "LONG"
         assert d["current_price"] == 110.0
         assert d["unrealized_pnl"] == 100.0
+
+    def test_position_invalid_entry_price(self):
+        with pytest.raises(ValueError, match="Entry price must be positive"):
+            Position(
+                symbol="AAPL",
+                entry_price=0.0,
+                quantity=10,
+                side=PositionSide.LONG,
+                entry_time=datetime(2023, 1, 1),
+            )
+
+    def test_position_invalid_quantity(self):
+        with pytest.raises(ValueError, match="Quantity must be positive"):
+            Position(
+                symbol="AAPL",
+                entry_price=100.0,
+                quantity=-5,
+                side=PositionSide.LONG,
+                entry_time=datetime(2023, 1, 1),
+            )

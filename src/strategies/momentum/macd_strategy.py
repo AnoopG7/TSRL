@@ -68,11 +68,11 @@ class MACDStrategy(BaseStrategy):
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
-        ema_fast = close.ewm(span=self._params["fast_period"].value, adjust=False).mean()
-        ema_slow = close.ewm(span=self._params["slow_period"].value, adjust=False).mean()
+        ema_fast = close.ewm(span=self._fast_period, adjust=False).mean()
+        ema_slow = close.ewm(span=self._slow_period, adjust=False).mean()
 
         macd_line = ema_fast - ema_slow
-        signal_line = macd_line.ewm(span=self._params["signal_period"].value, adjust=False).mean()
+        signal_line = macd_line.ewm(span=self._signal_period, adjust=False).mean()
         histogram = macd_line - signal_line
 
         signals = pd.DataFrame(index=data.index)

@@ -61,19 +61,18 @@ class MovingAverageRibbonStrategy(BaseStrategy):
         }
 
     def _validate_parameters(self) -> bool:
-        p = self._params
-        if p["fast_period"].value >= p["medium_period"].value:
+        if self._fast_period >= self._medium_period:
             raise ValueError("fast_period must be less than medium_period")
-        if p["medium_period"].value >= p["slow_period"].value:
+        if self._medium_period >= self._slow_period:
             raise ValueError("medium_period must be less than slow_period")
         return True
 
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
-        ma_fast = close.ewm(span=self._params["fast_period"].value, adjust=False).mean()
-        ma_medium = close.ewm(span=self._params["medium_period"].value, adjust=False).mean()
-        ma_slow = close.ewm(span=self._params["slow_period"].value, adjust=False).mean()
+        ma_fast = close.ewm(span=self._fast_period, adjust=False).mean()
+        ma_medium = close.ewm(span=self._medium_period, adjust=False).mean()
+        ma_slow = close.ewm(span=self._slow_period, adjust=False).mean()
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close
@@ -158,19 +157,18 @@ class TripleMAStrategy(BaseStrategy):
         }
 
     def _validate_parameters(self) -> bool:
-        p = self._params
-        if p["fast_period"].value >= p["medium_period"].value:
+        if self._fast_period >= self._medium_period:
             raise ValueError("fast_period must be less than medium_period")
-        if p["medium_period"].value >= p["slow_period"].value:
+        if self._medium_period >= self._slow_period:
             raise ValueError("medium_period must be less than slow_period")
         return True
 
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
-        ma_fast = close.rolling(window=self._params["fast_period"].value).mean()
-        ma_medium = close.rolling(window=self._params["medium_period"].value).mean()
-        ma_slow = close.rolling(window=self._params["slow_period"].value).mean()
+        ma_fast = close.rolling(window=self._fast_period).mean()
+        ma_medium = close.rolling(window=self._medium_period).mean()
+        ma_slow = close.rolling(window=self._slow_period).mean()
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close

@@ -18,6 +18,12 @@ class Position:
     side: PositionSide
     current_price: Optional[float] = None
 
+    def __post_init__(self):
+        if self.entry_price <= 0:
+            raise ValueError("Entry price must be positive")
+        if self.quantity <= 0:
+            raise ValueError("Quantity must be positive")
+
     @property
     def market_value(self) -> float:
         if self.current_price is None:

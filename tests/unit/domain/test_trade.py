@@ -62,6 +62,26 @@ class TestTrade:
         assert trade.side == TradeSide.SHORT
         assert trade.status == TradeStatus.OPEN
 
+    def test_trade_invalid_entry_price(self):
+        with pytest.raises(ValueError, match="Entry price must be positive"):
+            Trade(
+                symbol="AAPL",
+                entry_time=datetime(2023, 1, 1),
+                entry_price=0.0,
+                quantity=10,
+                side=TradeSide.LONG,
+            )
+
+    def test_trade_invalid_quantity(self):
+        with pytest.raises(ValueError, match="Quantity must be positive"):
+            Trade(
+                symbol="AAPL",
+                entry_time=datetime(2023, 1, 1),
+                entry_price=100.0,
+                quantity=-5,
+                side=TradeSide.LONG,
+            )
+
     def test_trade_pnl_long_winning(self):
         trade = Trade(
             symbol="AAPL",

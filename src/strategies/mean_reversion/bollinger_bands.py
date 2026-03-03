@@ -52,11 +52,11 @@ class BollingerBandsStrategy(BaseStrategy):
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
-        sma = close.rolling(window=self._params["period"].value).mean()
-        std = close.rolling(window=self._params["period"].value).std()
+        sma = close.rolling(window=self._period).mean()
+        std = close.rolling(window=self._period).std()
 
-        upper_band = sma + (std * self._params["std_dev"].value)
-        lower_band = sma - (std * self._params["std_dev"].value)
+        upper_band = sma + (std * self._std_dev)
+        lower_band = sma - (std * self._std_dev)
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close
@@ -123,11 +123,11 @@ class BollingerBandsBreakoutStrategy(BaseStrategy):
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
-        sma = close.rolling(window=self._params["period"].value).mean()
-        std = close.rolling(window=self._params["period"].value).std()
+        sma = close.rolling(window=self._period).mean()
+        std = close.rolling(window=self._period).std()
 
-        upper_band = sma + (std * self._params["std_dev"].value)
-        lower_band = sma - (std * self._params["std_dev"].value)
+        upper_band = sma + (std * self._std_dev)
+        lower_band = sma - (std * self._std_dev)
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close

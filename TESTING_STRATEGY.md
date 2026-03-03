@@ -421,23 +421,25 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 
 | Phase | Target | Current |
 |-------|--------|---------|
-| Phase 1 | 90% domain | **159 tests / 60%** ✅ |
-| Phase 2 | 85% strategies | **107 tests / 74%** ✅ |
+| Phase 1 | 90% domain | **172 tests / 76%** ✅ |
+| Phase 2 | 85% strategies | **107 tests / 76%** ✅ |
 | Phase 3 | 80% engine | 0 tests |
 | Phase 4 | 75% integration | 0 tests |
 | Phase 5 | Properties | 0 tests |
 | Phase 6 | Performance | 0 tests |
-| **Total** | **80%** | **74%** |
+| **Total** | **80%** | **76% (279 tests)** |
 
 
 ### Phase 1 Domain Layer Coverage
-| domain/entities/trade.py | 98% |
+| File | Coverage |
+|------|----------|
+| domain/entities/trade.py | 97% |
 | domain/entities/position.py | 100% |
 | domain/entities/signal.py | 100% |
 | domain/entities/ohlcv.py | 100% |
 | domain/value_objects/symbol.py | 100% |
 | domain/entities/metrics.py | 95% |
-| analytics/risk_metrics.py | 78% |
+| analytics/risk_metrics.py | 95% |
 
 
 ### Phase 2 Detailed Coverage (Strategies)
@@ -446,10 +448,10 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 | strategies/base.py | 93% |
 | strategies/registry.py | 90% |
 | strategies/momentum/ema_crossover.py | 98% |
-| strategies/momentum/macd_strategy.py | 96% |
+| strategies/momentum/macd_strategy.py | 98% |
 | strategies/momentum/volume_strategies.py | 95% |
-| strategies/momentum/ma_ribbon.py | 92% |
-| strategies/mean_reversion/bollinger_bands.py | 67% |
+| strategies/momentum/ma_ribbon.py | 95% |
+| strategies/mean_reversion/bollinger_bands.py | 96% |
 
 ---
 
@@ -462,14 +464,14 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 
 ### Step 2: Phase 1 - Domain Layer
 - [x] Create domain test files
-- [x] Implement trade tests (18 tests)
-- [x] Implement position tests (14 tests)
-- [x] Implement signal tests (34 tests)
-- [x] Implement ohlcv tests (11 tests)
-- [x] Implement symbol tests (18 tests)
-- [x] Implement metrics tests (17 tests)
-- [x] Implement analytics/risk_metrics tests (24 tests)
-- [x] Run and verify 114+ tests pass ✅
+- [x] Implement trade tests (20 tests)
+- [x] Implement position tests (19 tests)
+- [x] Implement signal tests (33 tests)
+- [x] Implement ohlcv tests (13 tests)
+- [x] Implement symbol tests (22 tests)
+- [x] Implement metrics tests (25 tests)
+- [x] Implement analytics/risk_metrics tests (40 tests)
+- [x] Run and verify 172+ tests pass ✅
 
 ### Step 3: Phase 2 - Strategies
 - [x] Create strategy test files
@@ -520,7 +522,7 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 - [x] Testing strategy planned
 - [x] Test directory structure created
 - [x] conftest.py with fixtures created
-- [x] Phase 1: Domain layer tests (159 tests) ✅
+- [x] Phase 1: Domain layer tests (172 tests) ✅
 - [x] Phase 2: Strategy tests (107 tests) ✅
 - [ ] Phase 3: Engine & ML tests (40 tests)
 - [ ] Phase 4: Integration tests (20 tests)

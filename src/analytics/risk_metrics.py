@@ -194,10 +194,10 @@ class DrawdownAnalyzer:
         drawdown_periods = []
         start = None
 
-        for i, (idx, (is_dd, dd_val)) in enumerate(zip(drawdown.index, drawdown.items())):
+        for i in range(len(drawdown)):
+            is_dd = in_drawdown.iloc[i]
             if is_dd and start is None:
                 start = i
-                start_idx = idx
             elif not is_dd and start is not None:
                 peak_idx = equity_curve.iloc[:start].idxmax()
                 trough_idx = equity_curve.iloc[start:i].idxmin()

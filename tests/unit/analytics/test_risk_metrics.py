@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from src.analytics.risk_metrics import RiskMetricsCalculator
+from src.analytics.risk_metrics import RiskMetricsCalculator, DrawdownAnalyzer
 
 
 class TestRiskMetricsCalculator:
@@ -219,3 +219,64 @@ class TestRiskMetricsCalculator:
         assert result["winning_trades"] == 0
         assert result["losing_trades"] == 3
         assert result["largest_loss"] == -100
+
+
+class TestDrawdownAnalyzer:
+    """Tests for DrawdownAnalyzer"""
+
+    def test_get_drawdown_periods_basic(self):
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        equity = pd.Series(
+            [100, 110, 105, 95, 98, 100, 112, 108, 115, 120], index=dates
+        )
+
+        periods = DrawdownAnalyzer.get_drawdown_periods(equity)
+
+        assert len(periods) > 0
+        for p in periods:
+            assert "start" in p
+            assert "end" in p
+            assert "duration" in p
+            assert "drawdown" in p
+            assert p["drawdown"] > 0
+
+    def test_get_drawdown_periods_empty(self):
+        equity = pd.Series([100])
+        periods = DrawdownAnalyzer.get_drawdown_periods(equity)
+        assert periods == []
+
+    def test_get_drawdown_periods_no_drawdown(self):
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        equity = pd.Series([100, 101, 102, 103, 104], index=dates)
+
+        periods = DrawdownAnalyzer.get_drawdown_periods(equity)
+
+        assert periods == []
+
+    def test_calculate_recovery_time_basic(self):
+        dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+        equity = pd.Series(
+            [100, 110, 105, 95, 98, 100, 105, 110, 115, 120], index=dates
+        )
+
+        # Drawdown starts at peak (110 on Jan 2), recovery back to 110 on Jan 8
+        result = DrawdownAnalyzer.calculate_recovery_time(equity, dates[1])
+        assert result is not None
+        assert result > 0
+
+    def test_calculate_recovery_time_no_recovery(self):
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        equity = pd.Series([100, 110, 90, 85, 80], index=dates)
+
+        # Start at peak 110, never recovers
+        result = DrawdownAnalyzer.calculate_recovery_time(equity, dates[1])
+        assert result is None
+
+    def test_calculate_recovery_time_not_in_index(self):
+        dates = pd.date_range(start="2023-01-01", periods=5, freq="D")
+        equity = pd.Series([100, 110, 90, 85, 80], index=dates)
+
+        result = DrawdownAnalyzer.calculate_recovery_time(
+            equity, pd.Timestamp("2024-01-01")
+        )
+        assert result is None

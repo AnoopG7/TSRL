@@ -53,7 +53,7 @@ class VolumeProfileStrategy(BaseStrategy):
         close = data["close"]
         volume = data["volume"]
 
-        avg_volume = volume.rolling(window=self._params["lookback"].value).mean()
+        avg_volume = volume.rolling(window=self._lookback).mean()
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close
@@ -61,7 +61,7 @@ class VolumeProfileStrategy(BaseStrategy):
         signals["avg_volume"] = avg_volume
         signals["signal"] = 0
 
-        volume_spike = volume > (avg_volume * self._params["volume_threshold"].value)
+        volume_spike = volume > (avg_volume * self._volume_threshold)
         price_up = close > close.shift(1)
 
         signals.loc[volume_spike & price_up, "signal"] = 1
@@ -123,8 +123,8 @@ class VolumeBreakoutStrategy(BaseStrategy):
         close = data["close"]
         volume = data["volume"]
 
-        high = close.rolling(window=self._params["period"].value).max()
-        volume_ma = volume.rolling(window=self._params["volume_ma_period"].value).mean()
+        high = close.rolling(window=self._period).max()
+        volume_ma = volume.rolling(window=self._volume_ma_period).mean()
 
         signals = pd.DataFrame(index=data.index)
         signals["close"] = close
