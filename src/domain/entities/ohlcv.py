@@ -1,7 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
-from typing import Optional
 import pandas as pd
 
 
@@ -14,6 +12,12 @@ class OHLCV:
     low: float
     close: float
     volume: float
+
+    def __post_init__(self):
+        if self.high < self.low:
+            raise ValueError("High price cannot be less than low price")
+        if self.volume < 0:
+            raise ValueError("Volume cannot be negative")
 
     @property
     def typical_price(self) -> float:
@@ -52,12 +56,16 @@ class OHLCV:
 
     @classmethod
     def from_pandas_row(cls, row: pd.Series, symbol: str) -> "OHLCV":
+        timestamp = row.name
+        if not isinstance(timestamp, (datetime, pd.Timestamp)):
+            timestamp = pd.to_datetime(timestamp)
         return cls(
             symbol=symbol,
-            timestamp=pd.to_datetime(row.name) if hasattr(row.name, "__iter__") else row.name,
+            timestamp=timestamp,
             open=float(row["open"]),
             high=float(row["high"]),
             low=float(row["low"]),
             close=float(row["close"]),
             volume=float(row["volume"]),
         )
+

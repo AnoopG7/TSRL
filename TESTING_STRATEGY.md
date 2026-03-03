@@ -9,8 +9,9 @@
 - **Test Framework**: pytest + pytest-cov + pytest-mock + hypothesis (property-based)
 - **Test Structure**: tests/unit/, tests/integration/, tests/fixtures/
 - **Target Coverage**: 80%+ (phased approach)
+- **Run Command**: `pytest` or `pytest tests/` or `pytest tests/unit/domain/test_trade.py`
 - **Test Files Location**: `/Users/anoop/Developer/Projects/TSRL/tests/`
-
+- **Generate Coverage report**: `pytest --cov=src --cov-report=html`
 ---
 
 ## Phase 1: Unit Tests - Domain Layer (Week 1)
@@ -421,16 +422,15 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 | Phase | Target | Current |
 |-------|--------|---------|
 | Phase 1 | 90% domain | **159 tests / 60%** ✅ |
-| Phase 2 | 85% strategies | 0 tests |
+| Phase 2 | 85% strategies | **107 tests / 74%** ✅ |
 | Phase 3 | 80% engine | 0 tests |
 | Phase 4 | 75% integration | 0 tests |
 | Phase 5 | Properties | 0 tests |
 | Phase 6 | Performance | 0 tests |
-| **Total** | **80%** | **60%** |
+| **Total** | **80%** | **74%** |
 
-### Phase 1 Detailed Coverage (Domain Layer)
-| File | Coverage |
-|------|----------|
+
+### Phase 1 Domain Layer Coverage
 | domain/entities/trade.py | 98% |
 | domain/entities/position.py | 100% |
 | domain/entities/signal.py | 100% |
@@ -438,6 +438,18 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 | domain/value_objects/symbol.py | 100% |
 | domain/entities/metrics.py | 95% |
 | analytics/risk_metrics.py | 78% |
+
+
+### Phase 2 Detailed Coverage (Strategies)
+| File | Coverage |
+|------|----------|
+| strategies/base.py | 93% |
+| strategies/registry.py | 90% |
+| strategies/momentum/ema_crossover.py | 98% |
+| strategies/momentum/macd_strategy.py | 96% |
+| strategies/momentum/volume_strategies.py | 95% |
+| strategies/momentum/ma_ribbon.py | 92% |
+| strategies/mean_reversion/bollinger_bands.py | 67% |
 
 ---
 
@@ -460,10 +472,12 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 - [x] Run and verify 114+ tests pass ✅
 
 ### Step 3: Phase 2 - Strategies
-- [ ] Create strategy test files
-- [ ] Implement base strategy tests
-- [ ] Implement individual strategy tests
-- [ ] Run and verify 30+ tests pass
+- [x] Create strategy test files
+- [x] Implement base strategy tests (25 tests)
+- [x] Implement registry tests (17 tests)
+- [x] Implement EMA/RSI/Breakout strategy tests (25 tests)
+- [x] Implement MACD/Volume/MA Ribbon/Bollinger tests (49 tests)
+- [x] Run and verify 107+ strategy tests pass ✅
 
 ### Step 4: Phase 3 - Engine & ML
 - [ ] Create engine test files
@@ -506,8 +520,8 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 - [x] Testing strategy planned
 - [x] Test directory structure created
 - [x] conftest.py with fixtures created
-- [x] Phase 1: Domain layer tests (114 tests) ✅
-- [ ] Phase 2: Strategy tests (30 tests)
+- [x] Phase 1: Domain layer tests (159 tests) ✅
+- [x] Phase 2: Strategy tests (107 tests) ✅
 - [ ] Phase 3: Engine & ML tests (40 tests)
 - [ ] Phase 4: Integration tests (20 tests)
 - [ ] Phase 5: Property-based tests (20 tests)

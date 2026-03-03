@@ -199,7 +199,7 @@ class TestTrade:
         assert d["side"] == "LONG"
         assert d["status"] == "CLOSED"
         assert d["pnl"] == 98.5
-        assert d["pnl_pct"] == 10.0
+        assert d["pnl_pct"] == 9.85
 
     def test_trade_close_method(self):
         trade = Trade(

@@ -78,7 +78,7 @@ class RiskMetrics:
     def recovery_factor(self) -> float:
         if self.max_drawdown == 0:
             return 0.0
-        return self.total_return / abs(self.max_drawdown) if self.max_drawdown != 0 else 0.0
+        return self.total_return / abs(self.max_drawdown)
 
     @property
     def risk_adjusted_return(self) -> float:
@@ -159,14 +159,17 @@ class RiskMetrics:
             metrics.largest_win = max(wins)
 
         if metrics.losing_trades > 0:
-            losses = [abs(t["pnl"]) for t in closed_trades if t["pnl"] < 0]
-            metrics.avg_loss = sum(losses) / metrics.losing_trades
-            metrics.largest_loss = max(losses)
+            losses = [t["pnl"] for t in closed_trades if t["pnl"] < 0]
+            metrics.avg_loss = abs(sum(losses)) / metrics.losing_trades
+            metrics.largest_loss = min(losses)  # stored as negative
 
-        if metrics.avg_loss > 0:
-            metrics.profit_factor = (
-                metrics.avg_win / metrics.avg_loss if metrics.avg_loss > 0 else 0
-            )
+        # Profit factor = gross_profit / gross_loss (standard definition)
+        gross_profit = sum(t["pnl"] for t in closed_trades if t["pnl"] > 0)
+        gross_loss = abs(sum(t["pnl"] for t in closed_trades if t["pnl"] < 0))
+        if gross_loss > 0:
+            metrics.profit_factor = gross_profit / gross_loss
+        elif gross_profit > 0:
+            metrics.profit_factor = float("inf")
 
         metrics.expectancy = (metrics.win_rate * metrics.avg_win) - (
             (1 - metrics.win_rate) * metrics.avg_loss

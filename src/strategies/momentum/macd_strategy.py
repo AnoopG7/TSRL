@@ -61,7 +61,7 @@ class MACDStrategy(BaseStrategy):
         }
 
     def _validate_parameters(self) -> bool:
-        if self._params["fast_period"].value >= self._params["slow_period"].value:
+        if self._fast_period >= self._slow_period:
             raise ValueError("fast_period must be less than slow_period")
         return True
 

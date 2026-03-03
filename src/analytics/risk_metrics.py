@@ -91,19 +91,8 @@ class RiskMetricsCalculator:
         if not closed_trades:
             return 0.0
 
-        winning_trades = [t for t in closed_trades if t["pnl"] > 0]
-        losing_trades = [t for t in closed_trades if t["pnl"] < 0]
-
-        win_rate = len(winning_trades) / len(closed_trades) if closed_trades else 0
-
-        avg_win = (
-            sum(t["pnl"] for t in winning_trades) / len(winning_trades) if winning_trades else 0
-        )
-        avg_loss = (
-            abs(sum(t["pnl"] for t in losing_trades) / len(losing_trades)) if losing_trades else 0
-        )
-
-        return (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+        total_pnl = sum(t["pnl"] for t in closed_trades)
+        return total_pnl / len(closed_trades)
 
     @staticmethod
     def calculate_profit_factor(trades: List[Dict[str, Any]]) -> float:
@@ -205,19 +194,20 @@ class DrawdownAnalyzer:
         drawdown_periods = []
         start = None
 
-        for idx, (is_dd, dd_val) in enumerate(drawdown.items()):
+        for i, (idx, (is_dd, dd_val)) in enumerate(zip(drawdown.index, drawdown.items())):
             if is_dd and start is None:
-                start = idx
+                start = i
+                start_idx = idx
             elif not is_dd and start is not None:
-                peak_idx = equity_curve[:start].idxmax()
-                trough_idx = equity_curve[start:idx].idxmin()
+                peak_idx = equity_curve.iloc[:start].idxmax()
+                trough_idx = equity_curve.iloc[start:i].idxmin()
 
                 drawdown_periods.append(
                     {
                         "start": peak_idx,
                         "end": trough_idx,
                         "duration": (trough_idx - peak_idx).days,
-                        "drawdown": abs(drawdown[start:idx].min()),
+                        "drawdown": abs(drawdown.iloc[start:i].min()),
                         "peak_value": equity_curve[peak_idx],
                         "trough_value": equity_curve[trough_idx],
                     }
@@ -234,13 +224,14 @@ class DrawdownAnalyzer:
         if drawdown_start not in equity_curve.index:
             return None
 
-        trough_value = equity_curve[drawdown_start]
+        peak_value = equity_curve[drawdown_start]
         after_start = equity_curve[drawdown_start:]
 
-        recovered = after_start[after_start >= trough_value]
+        # Find when equity recovers back to the peak value
+        recovered = after_start[after_start >= peak_value]
 
-        if len(recovered) > 0:
-            recovery_date = recovered.index[0]
+        if len(recovered) > 1:  # First match is the start itself
+            recovery_date = recovered.index[1]
             return (recovery_date - drawdown_start).days
 
         return None

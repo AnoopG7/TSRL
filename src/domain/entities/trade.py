@@ -29,6 +29,12 @@ class Trade:
     commission: float = 0.0
     slippage: float = 0.0
 
+    def __post_init__(self):
+        if self.entry_price <= 0:
+            raise ValueError("Entry price must be positive")
+        if self.quantity <= 0:
+            raise ValueError("Quantity must be positive")
+
     @property
     def pnl(self) -> Optional[float]:
         if self.exit_price is None:
@@ -45,11 +51,11 @@ class Trade:
 
     @property
     def pnl_pct(self) -> Optional[float]:
-        if self.exit_price is None:
+        if self.exit_price is None or self.pnl is None:
             return None
-        if self.side == TradeSide.LONG:
-            return ((self.exit_price - self.entry_price) / self.entry_price) * 100
-        return ((self.entry_price - self.exit_price) / self.entry_price) * 100
+        if self.trade_value == 0:
+            return 0.0
+        return (self.pnl / self.trade_value) * 100
 
     @property
     def is_winning(self) -> Optional[bool]:
