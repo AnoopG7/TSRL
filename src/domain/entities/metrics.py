@@ -243,6 +243,8 @@ class RiskMetrics:
             return 0.0
 
         win_loss_ratio = avg_win / avg_loss
+        if win_loss_ratio == 0:
+            return 0.0
         kelly = (win_rate * win_loss_ratio - (1 - win_rate)) / win_loss_ratio
 
         return max(0.0, min(1.0, kelly))
