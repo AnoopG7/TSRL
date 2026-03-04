@@ -59,9 +59,7 @@ class WalkForwardAnalysis:
         if step_days is None:
             step_days = test_days
 
-        train_data, test_data = self._prepare_data(data)
-
-        if len(train_data) < train_days:
+        if len(data) < train_days:
             raise ValueError(f"Insufficient data: need {train_days} days for training")
 
         windows = []
@@ -240,134 +238,6 @@ class WalkForwardAnalysis:
         result.execution_time_ms = execution_time
 
         return result
-
-    def run_expanding_window(
-        self,
-        strategy: BaseStrategy,
-        data: pd.DataFrame,
-        param_grid: dict,
-        initial_train_days: int = 252,
-        test_days: int = 63,
-        config: Optional[BacktestConfig] = None,
-    ) -> WalkForwardResult:
-        start_time = datetime.now()
-        cfg = config or BacktestConfig()
-
-        windows = []
-        train_start_idx = 0
-        test_start_idx = initial_train_days
-
-        iteration = 0
-        while test_start_idx + test_days <= len(data):
-            train_start = data.index[train_start_idx]
-            train_end = data.index[test_start_idx - 1]
-            test_start = data.index[test_start_idx]
-            test_end = data.index[min(test_start_idx + test_days - 1, len(data) - 1)]
-
-            train_slice = data.loc[train_start:train_end].copy()
-            test_slice = data.loc[test_start:test_end].copy()
-
-            logger.info(
-                f"Expanding WFA {iteration + 1}: Train {train_start.date()} to {train_end.date()}, Test {test_start.date()} to {test_end.date()}"
-            )
-
-            optimizer = GridSearchOptimizer()
-            optimizer.config.verbose = False
-
-            opt_result = optimizer.optimize(strategy, train_slice, param_grid, cfg)
-
-            best_params = opt_result.best_params
-            train_result = optimizer._evaluate_params(type(strategy), best_params, train_slice, cfg)
-
-            test_result = self._evaluate_with_params(type(strategy), best_params, test_slice, cfg)
-
-            window = WalkForwardWindow(
-                train_start=train_start,
-                train_end=train_end,
-                test_start=test_start,
-                test_end=test_end,
-                best_params=best_params,
-                train_metrics=train_result.get("metrics", {}),
-                test_metrics=test_result.get("metrics", {}),
-                test_return=test_result.get("total_return", 0.0),
-                test_trades=test_result.get("total_trades", 0),
-            )
-            windows.append(window)
-
-            test_start_idx += test_days
-            iteration += 1
-
-        result = self._aggregate_results(windows)
-
-        execution_time = (datetime.now() - start_time).total_seconds() * 1000
-        result.execution_time_ms = execution_time
-
-        return result
-
-    def run_rolling_window(
-        self,
-        strategy_class: Type[BaseStrategy],
-        data: pd.DataFrame,
-        param_grid: dict,
-        train_days: int = 252,
-        test_days: int = 63,
-        config: Optional[BacktestConfig] = None,
-    ) -> WalkForwardResult:
-        start_time = datetime.now()
-        cfg = config or BacktestConfig()
-
-        windows = []
-        train_start_idx = 0
-
-        iteration = 0
-        while train_start_idx + train_days + test_days <= len(data):
-            train_start = data.index[train_start_idx]
-            train_end = data.index[train_start_idx + train_days - 1]
-            test_start = data.index[train_start_idx + train_days]
-            test_end = data.index[train_start_idx + train_days + test_days - 1]
-
-            train_slice = data.loc[train_start:train_end].copy()
-            test_slice = data.loc[test_start:test_end].copy()
-
-            logger.info(
-                f"Rolling WFA {iteration + 1}: Train {train_start.date()} to {train_end.date()}, Test {test_start.date()} to {test_end.date()}"
-            )
-
-            optimizer = GridSearchOptimizer()
-            optimizer.config.verbose = False
-
-            opt_result = optimizer.optimize(strategy_class(), train_slice, param_grid, cfg)
-
-            best_params = opt_result.best_params
-            train_result = optimizer._evaluate_params(strategy_class, best_params, train_slice, cfg)
-
-            test_result = self._evaluate_with_params(strategy_class, best_params, test_slice, cfg)
-
-            window = WalkForwardWindow(
-                train_start=train_start,
-                train_end=train_end,
-                test_start=test_start,
-                test_end=test_end,
-                best_params=best_params,
-                train_metrics=train_result.get("metrics", {}),
-                test_metrics=test_result.get("metrics", {}),
-                test_return=test_result.get("total_return", 0.0),
-                test_trades=test_result.get("total_trades", 0),
-            )
-            windows.append(window)
-
-            train_start_idx += test_days
-            iteration += 1
-
-        result = self._aggregate_results(windows)
-
-        execution_time = (datetime.now() - start_time).total_seconds() * 1000
-        result.execution_time_ms = execution_time
-
-        return result
-
-    def _prepare_data(self, data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        return data, data
 
     def _evaluate_with_params(
         self,

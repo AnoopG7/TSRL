@@ -421,13 +421,13 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 
 | Phase | Target | Current |
 |-------|--------|---------|
-| Phase 1 | 90% domain | **172 tests / 76%** ✅ |
-| Phase 2 | 85% strategies | **107 tests / 76%** ✅ |
-| Phase 3 | 80% engine | 0 tests |
+| Phase 1 | 90% domain | **172 tests / 83%** ✅ |
+| Phase 2 | 85% strategies | **107 tests / 83%** ✅ |
+| Phase 3 | 80% engine | **104 tests / 83%** ✅ |
 | Phase 4 | 75% integration | 0 tests |
 | Phase 5 | Properties | 0 tests |
 | Phase 6 | Performance | 0 tests |
-| **Total** | **80%** | **76% (279 tests)** |
+| **Total** | **80%** | **83% (383 tests)** ✅ |
 
 
 ### Phase 1 Domain Layer Coverage
@@ -438,7 +438,7 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 | domain/entities/signal.py | 100% |
 | domain/entities/ohlcv.py | 100% |
 | domain/value_objects/symbol.py | 100% |
-| domain/entities/metrics.py | 95% |
+| domain/entities/metrics.py | 96% |
 | analytics/risk_metrics.py | 95% |
 
 
@@ -452,6 +452,16 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 | strategies/momentum/volume_strategies.py | 95% |
 | strategies/momentum/ma_ribbon.py | 95% |
 | strategies/mean_reversion/bollinger_bands.py | 96% |
+
+
+### Phase 3 Detailed Coverage (Engine & ML)
+| File | Coverage |
+|------|----------|
+| engine/backtest/engine.py | 100% |
+| engine/optimizer/optimizer.py | 82% |
+| engine/walkforward/walkforward.py | 99% |
+| ml/feature_engineering/features.py | 100% |
+| ml/strategies/ml_strategies.py | 94% |
 
 ---
 
@@ -482,11 +492,13 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 - [x] Run and verify 107+ strategy tests pass ✅
 
 ### Step 4: Phase 3 - Engine & ML
-- [ ] Create engine test files
-- [ ] Implement backtest engine tests
-- [ ] Implement optimizer tests
-- [ ] Implement ML tests
-- [ ] Run and verify 40+ tests pass
+- [x] Create engine test files
+- [x] Implement backtest engine tests (21 tests)
+- [x] Implement optimizer tests (20 tests)
+- [x] Implement walkforward tests (13 tests)
+- [x] Implement ML feature engineer tests (29 tests)
+- [x] Implement ML strategy tests (21 tests)
+- [x] Run and verify 104 tests pass ✅
 
 ### Step 5: Phase 4 - Integration
 - [ ] Create integration test files
@@ -524,7 +536,7 @@ pytest tests/unit/test_properties.py -v --hypothesis-show-statistics
 - [x] conftest.py with fixtures created
 - [x] Phase 1: Domain layer tests (172 tests) ✅
 - [x] Phase 2: Strategy tests (107 tests) ✅
-- [ ] Phase 3: Engine & ML tests (40 tests)
+- [x] Phase 3: Engine & ML tests (89 tests) ✅
 - [ ] Phase 4: Integration tests (20 tests)
 - [ ] Phase 5: Property-based tests (20 tests)
 - [ ] Phase 6: Performance tests (10 tests)

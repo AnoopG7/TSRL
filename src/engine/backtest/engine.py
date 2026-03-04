@@ -286,8 +286,6 @@ class BacktestEngine:
         running_max = cumulative_returns.cummax()
         df["drawdown"] = (cumulative_returns - running_max) / running_max
 
-        df["equity"] = initial_capital * cumulative_returns
-
         return df
 
 

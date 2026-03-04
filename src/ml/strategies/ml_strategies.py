@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 from typing import Optional
@@ -7,6 +8,8 @@ from sklearn.preprocessing import StandardScaler
 from src.strategies.base import BaseStrategy, StrategyParameter
 from src.strategies.registry import register_strategy
 from src.ml.feature_engineering.features import FeatureEngineer
+
+logger = logging.getLogger(__name__)
 
 
 @register_strategy("ml_random_forest")
@@ -84,7 +87,7 @@ class MLRandomForestStrategy(BaseStrategy):
     def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
         if (
             len(data)
-            < self._params["lookback"].value + self._params["prediction_horizon"].value + 50
+            < self._lookback + self._prediction_horizon + 50
         ):
             return data
 
@@ -101,8 +104,8 @@ class MLRandomForestStrategy(BaseStrategy):
         X_scaled = self._scaler.fit_transform(X)
 
         self._model = RandomForestClassifier(
-            n_estimators=self._params["n_estimators"].value,
-            max_depth=self._params["max_depth"].value,
+            n_estimators=self._n_estimators,
+            max_depth=self._max_depth,
             random_state=42,
             n_jobs=-1,
         )
@@ -136,7 +139,7 @@ class MLRandomForestStrategy(BaseStrategy):
         return features[available_cols].dropna()
 
     def _generate_labels(self, data: pd.DataFrame) -> pd.Series:
-        horizon = self._params["prediction_horizon"].value
+        horizon = self._prediction_horizon
         future_return = data["close"].shift(-horizon) / data["close"] - 1
 
         labels = pd.Series(index=data.index, dtype=float)
@@ -174,7 +177,7 @@ class MLRandomForestStrategy(BaseStrategy):
             signals["signal"] = aligned_signals["signal"]
 
         except Exception as e:
-            pass
+            logger.warning(f"ML RandomForest signal generation failed: {e}")
 
         return signals
 
@@ -265,7 +268,7 @@ class MLGradientBoostingStrategy(BaseStrategy):
     def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
         if (
             len(data)
-            < self._params["lookback"].value + self._params["prediction_horizon"].value + 50
+            < self._lookback + self._prediction_horizon + 50
         ):
             return data
 
@@ -282,9 +285,9 @@ class MLGradientBoostingStrategy(BaseStrategy):
         X_scaled = self._scaler.fit_transform(X)
 
         self._model = GradientBoostingClassifier(
-            n_estimators=self._params["n_estimators"].value,
-            max_depth=self._params["max_depth"].value,
-            learning_rate=self._params["learning_rate"].value,
+            n_estimators=self._n_estimators,
+            max_depth=self._max_depth,
+            learning_rate=self._learning_rate,
             random_state=42,
         )
         self._model.fit(X_scaled, y)
@@ -314,7 +317,7 @@ class MLGradientBoostingStrategy(BaseStrategy):
         return features[available_cols].dropna()
 
     def _generate_labels(self, data: pd.DataFrame) -> pd.Series:
-        horizon = self._params["prediction_horizon"].value
+        horizon = self._prediction_horizon
         future_return = data["close"].shift(-horizon) / data["close"] - 1
 
         labels = pd.Series(index=data.index, dtype=float)
@@ -352,7 +355,7 @@ class MLGradientBoostingStrategy(BaseStrategy):
             signals["signal"] = aligned_signals["signal"]
 
         except Exception as e:
-            pass
+            logger.warning(f"ML GradientBoosting signal generation failed: {e}")
 
         return signals
 
