@@ -31,6 +31,7 @@ class DataService:
             if source == "yahoo":
                 provider = YahooFinanceProvider()
             else:
+                logger.warning(f"Unknown source '{source}', defaulting to Yahoo Finance")
                 provider = YahooFinanceProvider()
 
             df = provider.fetch_ohlcv(
@@ -42,7 +43,7 @@ class DataService:
             logger.info(f"Fetched {len(df)} rows of live data for {symbol}")
             return df, "live"
 
-        except (DataProviderError, Exception) as e:
+        except Exception as e:
             logger.warning(f"Data fetch failed for {symbol}: {e}. Using simulated data.")
             n_days = (end_date - start_date).days
             df = generate_sample_ohlcv(symbol=symbol, n_days=max(n_days, 30))

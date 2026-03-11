@@ -258,8 +258,8 @@ class BacktestService:
                     },
                 )
 
-                winning = sum(1 for t in result.trades if t.pnl and t.pnl > 0)
-                losing = sum(1 for t in result.trades if t.pnl and t.pnl <= 0)
+                winning = sum(1 for t in result.trades if t.pnl is not None and t.pnl > 0)
+                losing = sum(1 for t in result.trades if t.pnl is not None and t.pnl <= 0)
 
                 backtest_repo.update_results(
                     backtest_id=backtest.id,

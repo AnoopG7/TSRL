@@ -17,7 +17,10 @@ class RiskMetricsCalculator:
         years = n_days / 252
         if years <= 0:
             return 0.0
-        return (final_capital / initial_capital) ** (1 / years) - 1
+        try:
+            return (final_capital / initial_capital) ** (1 / years) - 1
+        except (OverflowError, ValueError):
+            return 0.0
 
     @staticmethod
     def calculate_sharpe_ratio(
@@ -143,7 +146,7 @@ class RiskMetricsCalculator:
         if len(returns) < 1:
             return pd.DataFrame()
 
-        monthly = returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+        monthly = returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
         monthly_pivot = monthly.to_frame()
         monthly_pivot["year"] = monthly_pivot.index.year
         monthly_pivot["month"] = monthly_pivot.index.month
