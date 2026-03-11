@@ -22,7 +22,7 @@ wheels/
 venv/
 ENV/
 env/
-.venv
+.venv/
 
 # IDEs
 .vscode/
@@ -36,6 +36,7 @@ env/
 .coverage
 htmlcov/
 .tox/
+.hypothesis/
 
 # Data
 *.db
