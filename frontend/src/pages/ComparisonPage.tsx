@@ -77,17 +77,20 @@ export const ComparisonPage: React.FC<ComparisonPageProps> = ({ strategies, onCo
               Select Strategies (min 2)
             </label>
             <div className="strategy-grid">
-              {strategies.map((s) => (
-                <button
-                  key={s.name}
-                  type="button"
-                  className={`strategy-chip ${selectedStrategies.includes(s.name) ? 'strategy-chip-active' : ''}`}
-                  onClick={() => toggleStrategy(s.name)}
-                >
-                  {s.name}
-                  <span className="strategy-chip-type">{s.type}</span>
-                </button>
-              ))}
+              {strategies.map((s) => {
+                const key = s.registry_key || s.name;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`strategy-chip ${selectedStrategies.includes(key) ? 'strategy-chip-active' : ''}`}
+                    onClick={() => toggleStrategy(key)}
+                  >
+                    {s.name}
+                    <span className="strategy-chip-type">{s.type}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

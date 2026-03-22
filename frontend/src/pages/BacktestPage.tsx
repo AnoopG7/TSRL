@@ -28,7 +28,7 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
   } = useForm<BacktestConfig>({
     resolver: zodResolver(BacktestConfigSchema),
     defaultValues: {
-      strategy_name: strategies[0]?.name || 'ema_crossover',
+      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || 'ema_crossover',
       symbol: 'AAPL',
       start_date: '2023-01-01',
       end_date: '2024-01-01',
@@ -65,7 +65,7 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
                 <label className="form-label">Strategy</label>
                 <select className="form-input" {...register('strategy_name')}>
                   {strategies.map((s) => (
-                    <option key={s.name} value={s.name}>
+                    <option key={s.registry_key || s.name} value={s.registry_key || s.name}>
                       {s.name} ({s.type})
                     </option>
                   ))}

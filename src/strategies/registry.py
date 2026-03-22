@@ -39,12 +39,14 @@ class StrategyRegistry:
         if strategy_class is None:
             return None
         strategy = strategy_class()
-        return strategy.to_dict()
+        info = strategy.to_dict()
+        info["registry_key"] = name
+        return info
 
     @classmethod
     def get_all_strategy_info(cls) -> List[Dict]:
         info = []
-        for name in cls._strategies.keys():
+        for name in cls._strategies:
             strategy_info = cls.get_strategy_info(name)
             if strategy_info:
                 info.append(strategy_info)

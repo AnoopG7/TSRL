@@ -16,12 +16,26 @@ function App() {
     setResult, setTrades, setLoading, setError,
     setEquityCurve, setDrawdownSeries, setMonthlyReturns,
     setComparisonResult, setComparisonLoading,
+    setStrategies,
   } = useBacktestStore();
   const { theme } = useThemeStore();
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Fetch strategies from API on load (fall back to hardcoded list)
+  useEffect(() => {
+    axios.get(`${API_URL}/api/v1/strategies`)
+      .then((res) => {
+        if (res.data.strategies && res.data.strategies.length > 0) {
+          setStrategies(res.data.strategies);
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — keep the hardcoded fallback list
+      });
+  }, [setStrategies]);
 
   const runBacktest = async (config: BacktestConfig) => {
     setLoading(true);

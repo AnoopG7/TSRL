@@ -185,6 +185,7 @@ class MLRandomForestStrategy(BaseStrategy):
         return ["open", "high", "low", "close", "volume"]
 
 
+@register_strategy("ml_gradient_boosting")
 class MLGradientBoostingStrategy(BaseStrategy):
     def __init__(
         self,

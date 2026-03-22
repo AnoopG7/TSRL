@@ -193,13 +193,13 @@ class TestMLGradientBoostingStrategy:
         assert len(labels) == len(sample_ohlcv_data)
         assert set(labels.dropna().unique()).issubset({-1, 0, 1})
 
-    def test_strategy_not_in_registry(self):
+    def test_strategy_in_registry(self):
         from src.strategies.registry import StrategyRegistry
 
-        registry = StrategyRegistry()
-        strategy = registry.create("ml_gradient_boosting")
+        strategy = StrategyRegistry.create("ml_gradient_boosting")
 
-        assert strategy is None
+        assert strategy is not None
+        assert isinstance(strategy, MLGradientBoostingStrategy)
 
     def test_different_learning_rates(self, sample_ohlcv_data_large):
         for lr in [0.01, 0.05, 0.2, 0.5]:

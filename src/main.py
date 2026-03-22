@@ -4,12 +4,20 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from config.settings import get_settings
 from src.infrastructure.database.connection import init_db
 from src.infrastructure.database.repositories import BacktestRepository
 from src.strategies.registry import StrategyRegistry
+from src.engine.optimizer.optimizer import (
+    GridSearchOptimizer,
+    RandomSearchOptimizer,
+    GeneticOptimizer,
+    OptimizationConfig,
+)
+from src.engine.walkforward.walkforward import WalkForwardAnalysis
+from src.engine.backtest.engine import BacktestConfig
 
 # Import strategies to trigger @register_strategy decorators
 from src.strategies.momentum.ema_crossover import EMACrossoverStrategy, RSIMeanReversionStrategy  # noqa
@@ -77,6 +85,44 @@ class CompareRequest(BaseModel):
     initial_capital: float = 100000.0
     commission: float = 0.001
     slippage: float = 0.0005
+
+
+class OptimizationRequest(BaseModel):
+    strategy_name: str
+    symbol: str
+    start_date: str
+    end_date: str
+    param_grid: Dict[str, List]
+    timeframe: str = "1d"
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+    metric: str = "sharpe_ratio"
+    n_iterations: int = 100
+
+
+class WalkForwardRequest(BaseModel):
+    strategy_name: str
+    symbol: str
+    start_date: str
+    end_date: str
+    param_grid: Dict[str, List]
+    train_days: int = 252
+    test_days: int = 63
+    timeframe: str = "1d"
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+
+
+class MLTrainRequest(BaseModel):
+    strategy_name: str = "ml_random_forest"
+    symbol: str
+    start_date: str
+    end_date: str
+    timeframe: str = "1d"
+    initial_capital: float = 100000.0
+    parameters: Optional[dict] = None
 
 
 # ==================== Endpoints ====================
@@ -203,7 +249,196 @@ async def compare_strategies(request: CompareRequest):
         )
         return {"status": "success", **result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+# ==================== Optimization Endpoints ====================
+
+
+def _run_optimization(request: OptimizationRequest, optimizer_cls: type) -> dict:
+    """Shared logic for all optimization endpoints."""
+    strategy = StrategyRegistry.create(request.strategy_name)
+    if strategy is None:
+        raise HTTPException(status_code=404, detail=f"Strategy '{request.strategy_name}' not found")
+
+    data_service = DataService()
+    start_dt = datetime.fromisoformat(request.start_date)
+    end_dt = datetime.fromisoformat(request.end_date)
+    df, data_source = data_service.fetch_data(request.symbol, start_dt, end_dt, request.timeframe)
+
+    opt_config = OptimizationConfig(metric=request.metric)
+    optimizer = optimizer_cls(config=opt_config)
+
+    bt_config = BacktestConfig(
+        initial_capital=request.initial_capital,
+        commission=request.commission,
+        slippage=request.slippage,
+    )
+
+    if isinstance(optimizer, RandomSearchOptimizer):
+        result = optimizer.optimize(strategy, df, request.param_grid, n_iter=request.n_iterations, config=bt_config)
+    else:
+        result = optimizer.optimize(strategy, df, request.param_grid, config=bt_config)
+
+    top_results = sorted(
+        [r for r in result.all_results if r.get("success")],
+        key=lambda x: x["score"],
+        reverse=True,
+    )[:20]
+
+    return {
+        "status": "success",
+        "strategy": request.strategy_name,
+        "symbol": request.symbol,
+        "data_source": data_source,
+        "best_params": result.best_params,
+        "best_score": result.best_score,
+        "total_iterations": result.total_iterations,
+        "execution_time_ms": result.execution_time_ms,
+        "top_results": top_results,
+    }
+
+
+@app.post("/api/v1/optimization/grid")
+async def run_grid_optimization(request: OptimizationRequest):
+    """Run grid search parameter optimization."""
+    try:
+        return _run_optimization(request, GridSearchOptimizer)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.post("/api/v1/optimization/random")
+async def run_random_optimization(request: OptimizationRequest):
+    """Run random search parameter optimization."""
+    try:
+        return _run_optimization(request, RandomSearchOptimizer)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.post("/api/v1/optimization/genetic")
+async def run_genetic_optimization(request: OptimizationRequest):
+    """Run genetic algorithm parameter optimization."""
+    try:
+        return _run_optimization(request, GeneticOptimizer)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+# ==================== Walk-Forward Endpoint ====================
+
+
+@app.post("/api/v1/walkforward/run")
+async def run_walkforward(request: WalkForwardRequest):
+    """Run walk-forward analysis."""
+    try:
+        strategy = StrategyRegistry.create(request.strategy_name)
+        if strategy is None:
+            raise HTTPException(
+                status_code=404, detail=f"Strategy '{request.strategy_name}' not found"
+            )
+
+        data_service = DataService()
+        start_dt = datetime.fromisoformat(request.start_date)
+        end_dt = datetime.fromisoformat(request.end_date)
+        df, data_source = data_service.fetch_data(
+            request.symbol, start_dt, end_dt, request.timeframe
+        )
+
+        bt_config = BacktestConfig(
+            initial_capital=request.initial_capital,
+            commission=request.commission,
+            slippage=request.slippage,
+        )
+
+        wfa = WalkForwardAnalysis()
+        result = wfa.run(
+            strategy_class=type(strategy),
+            data=df,
+            param_grid=request.param_grid,
+            train_days=request.train_days,
+            test_days=request.test_days,
+            config=bt_config,
+        )
+
+        windows = [
+            {
+                "train_start": w.train_start.isoformat(),
+                "train_end": w.train_end.isoformat(),
+                "test_start": w.test_start.isoformat(),
+                "test_end": w.test_end.isoformat(),
+                "best_params": w.best_params,
+                "test_return": w.test_return,
+                "test_trades": w.test_trades,
+            }
+            for w in result.windows
+        ]
+
+        return {
+            "status": "success",
+            "strategy": request.strategy_name,
+            "symbol": request.symbol,
+            "data_source": data_source,
+            "train_days": request.train_days,
+            "test_days": request.test_days,
+            "n_windows": len(windows),
+            "avg_train_sharpe": result.avg_train_sharpe,
+            "avg_test_sharpe": result.avg_test_sharpe,
+            "stability_score": result.stability_score,
+            "total_test_return": result.total_test_return,
+            "execution_time_ms": result.execution_time_ms,
+            "windows": windows,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+# ==================== ML Endpoint ====================
+
+
+@app.post("/api/v1/ml/train")
+async def train_ml_model(request: MLTrainRequest):
+    """Train an ML model and run backtest with it."""
+    try:
+        service = BacktestService()
+        result = service.run_backtest(
+            strategy_name=request.strategy_name,
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            timeframe=request.timeframe,
+            initial_capital=request.initial_capital,
+            parameters=request.parameters or {},
+        )
+
+        return {
+            "status": "success",
+            "model": request.strategy_name,
+            "symbol": request.symbol,
+            "data_source": result.data_source,
+            "results": {
+                "final_capital": result.final_capital,
+                "total_return": result.total_return,
+                "total_trades": result.total_trades,
+                "metrics": result.metrics,
+                "execution_time_ms": result.execution_time_ms,
+            },
+            "equity_curve": result.equity_curve,
+            "trades": result.trades[:10],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @app.get("/api/v1/health")

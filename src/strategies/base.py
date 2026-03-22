@@ -133,12 +133,26 @@ class BaseStrategy(ABC):
         return max(0, position_size)
 
     def to_dict(self) -> Dict[str, Any]:
+        params = {}
+        for key, val in self.get_parameters().items():
+            if isinstance(val, StrategyParameter):
+                params[key] = {
+                    "name": val.name,
+                    "value": _sanitize_float(val.value),
+                    "min_value": _sanitize_float(val.min_value),
+                    "max_value": _sanitize_float(val.max_value),
+                    "step": _sanitize_float(val.step),
+                    "description": val.description,
+                }
+            else:
+                params[key] = _sanitize_float(val)
+
         return {
             "name": self.name,
             "version": self.version,
             "description": self.description,
             "type": self.strategy_type,
-            "parameters": self.get_parameters(),
+            "parameters": params,
         }
 
     @classmethod
@@ -148,3 +162,10 @@ class BaseStrategy(ABC):
 
     def __repr__(self) -> str:
         return f"{self.name}(v{self.version})"
+
+
+def _sanitize_float(value: Any) -> Any:
+    """Replace NaN/inf with None for JSON serialization."""
+    if isinstance(value, float) and (np.isnan(value) or np.isinf(value)):
+        return None
+    return value
