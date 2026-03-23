@@ -12,7 +12,7 @@ AI-Powered Trading Strategy Research Platform for quantitative trading analysis,
 - **Machine Learning** — 116-feature engineering pipeline with Random Forest and Gradient Boosting classifiers
 - **REST API** — FastAPI backend with 12 endpoints (backtesting, optimization, walk-forward, ML)
 - **Modern Dashboard** — React + TypeScript frontend with equity curves, drawdown charts, and monthly returns heatmaps
-- **486 Tests, 89% Coverage** — Unit, integration, property-based, and performance tests
+- **530 Tests, 92% Coverage** — Unit, integration, property-based, and performance tests
 
 ## Quick Start
 
@@ -128,13 +128,14 @@ curl -X POST http://localhost:8000/api/v1/backtests/compare \
 |----------|------|-------------|
 | `ema_crossover` | Momentum | EMA crossover signals |
 | `rsi_mean_reversion` | Mean Reversion | RSI oversold/overbought |
+| `breakout` | Breakout | Price breakout above/below recent high/low |
 | `macd` | Momentum | MACD crossover signals |
 | `ma_ribbon` | Momentum | Multiple moving average ribbon |
 | `triple_ma` | Momentum | Triple moving average crossover |
 | `volume_profile` | Volume | Volume-based support/resistance |
 | `volume_breakout` | Volume | Volume surge breakout |
 | `bollinger_bands` | Mean Reversion | Bollinger Bands bounce |
-| `bollinger_breakout` | Breakout | Bollinger Bands breakout |
+| `bbands` | Breakout | Bollinger Bands breakout |
 | `ml_random_forest` | ML | Random Forest classifier |
 | `ml_gradient_boosting` | ML | Gradient Boosting classifier |
 
@@ -191,7 +192,7 @@ TSRL/
 │   ├── 01_data_exploration     # Data fetching, distributions, volatility
 │   ├── 02_strategy_backtest    # Strategy comparison, equity curves
 │   └── 03_optimization         # Grid search, heatmaps, walk-forward
-├── tests/                      # Test suites (486 tests, 89% coverage)
+├── tests/                      # Test suites (530 tests, 92% coverage)
 │   ├── unit/                   # Domain, strategy, engine, ML tests
 │   ├── integration/            # Workflow, database, portfolio tests
 │   └── performance/            # Scalability benchmarks
@@ -226,7 +227,7 @@ api:
 | Data | Pandas, NumPy, yfinance |
 | ML | scikit-learn, XGBoost |
 | Testing | pytest, Hypothesis, pytest-cov |
-| Frontend | React, Vite, TypeScript, Tailwind CSS |
+| Frontend | React, Vite, TypeScript, Recharts |
 
 ## License
 
