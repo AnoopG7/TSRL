@@ -49,7 +49,7 @@ const initialState = {
     { name: 'rsi_mean_reversion', version: '1.0.0', type: 'mean_reversion', description: 'RSI Mean Reversion' },
     { name: 'macd', version: '1.0.0', type: 'momentum', description: 'MACD Crossover Strategy' },
     { name: 'bollinger_bands', version: '1.0.0', type: 'mean_reversion', description: 'Bollinger Bands Bounce' },
-    { name: 'bollinger_breakout', version: '1.0.0', type: 'breakout', description: 'Bollinger Bands Breakout' },
+    { name: 'bbands', version: '1.0.0', type: 'breakout', description: 'Bollinger Bands Breakout' },
     { name: 'ma_ribbon', version: '1.0.0', type: 'momentum', description: 'Moving Average Ribbon' },
     { name: 'triple_ma', version: '1.0.0', type: 'momentum', description: 'Triple Moving Average' },
     { name: 'volume_profile', version: '1.0.0', type: 'volume', description: 'Volume Profile Strategy' },
