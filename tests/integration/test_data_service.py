@@ -574,7 +574,7 @@ class TestDataServiceUnknownSource:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", source="alpha_vantage")
+        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", source="unknown_source")
 
         assert isinstance(df, pd.DataFrame)
         assert source == "live"

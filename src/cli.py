@@ -1,5 +1,9 @@
 import click
 from datetime import datetime, timedelta
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / "config" / ".env")
 
 from src.application.services.data_service import DataService
 from src.strategies.registry import StrategyRegistry
@@ -17,7 +21,10 @@ from src.strategies.momentum.ema_crossover import EMACrossoverStrategy, RSIMeanR
 from src.strategies.momentum.macd_strategy import MACDStrategy  # noqa
 from src.strategies.momentum.ma_ribbon import MovingAverageRibbonStrategy, TripleMAStrategy  # noqa
 from src.strategies.momentum.volume_strategies import VolumeProfileStrategy, VolumeBreakoutStrategy  # noqa
-from src.strategies.mean_reversion.bollinger_bands import BollingerBandsStrategy, BollingerBandsBreakoutStrategy  # noqa
+from src.strategies.mean_reversion.bollinger_bands import (
+    BollingerBandsStrategy,
+    BollingerBandsBreakoutStrategy,
+)  # noqa
 from src.ml.strategies.ml_strategies import MLRandomForestStrategy, MLGradientBoostingStrategy  # noqa
 
 
@@ -49,7 +56,10 @@ def cli():
 @click.option("--capital", default=100000.0, help="Initial capital")
 @click.option("--commission", default=0.001)
 @click.option("--slippage", default=0.0005)
-def backtest(strategy, symbol, start_date, end_date, timeframe, capital, commission, slippage):
+@click.option("--source", default="yahoo", help="Data source: yahoo, alpha_vantage")
+def backtest(
+    strategy, symbol, start_date, end_date, timeframe, capital, commission, slippage, source
+):
     """Run a backtest with any registered strategy."""
     click.echo(f"\n{click.style('TSRL Backtest', fg='cyan', bold=True)}")
     click.echo(f"Strategy: {click.style(strategy, fg='yellow')}")
@@ -66,7 +76,7 @@ def backtest(strategy, symbol, start_date, end_date, timeframe, capital, commiss
     data_service = DataService()
     start_dt = datetime.fromisoformat(start_date)
     end_dt = datetime.fromisoformat(end_date)
-    df, data_source = data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
+    df, data_source = data_service.fetch_data(symbol, start_dt, end_dt, timeframe, source=source)
     click.echo(f"Data: {len(df)} bars ({data_source})")
 
     # Run backtest
@@ -85,7 +95,9 @@ def backtest(strategy, symbol, start_date, end_date, timeframe, capital, commiss
 
     ret_color = "green" if result.total_return >= 0 else "red"
     click.echo(f"  Final Capital:  ${result.final_capital:,.2f}")
-    click.echo(f"  Total Return:   {click.style(f'{result.total_return * 100:.2f}%', fg=ret_color)}")
+    click.echo(
+        f"  Total Return:   {click.style(f'{result.total_return * 100:.2f}%', fg=ret_color)}"
+    )
     click.echo(f"  Total Trades:   {len(result.trades)}")
     click.echo(f"  Execution Time: {result.execution_time_ms:.2f}ms")
 
@@ -103,7 +115,9 @@ def backtest(strategy, symbol, start_date, end_date, timeframe, capital, commiss
 def strategies():
     """List all available strategies."""
     all_strats = StrategyRegistry.get_all_strategy_info()
-    click.echo(f"\n{click.style('Available Strategies', fg='cyan', bold=True)} ({len(all_strats)} total)\n")
+    click.echo(
+        f"\n{click.style('Available Strategies', fg='cyan', bold=True)} ({len(all_strats)} total)\n"
+    )
 
     for info in all_strats:
         click.echo(f"  {click.style(info['name'], fg='yellow', bold=True)} (v{info['version']})")
@@ -237,7 +251,9 @@ def walkforward(strategy, symbol, start_date, end_date, train_days, test_days, c
     click.echo(f"  Windows:          {len(result.windows)}")
     click.echo(f"  Avg Train Sharpe: {_color_metric(result.avg_train_sharpe, '{:.4f}')}")
     click.echo(f"  Avg Test Sharpe:  {_color_metric(result.avg_test_sharpe, '{:.4f}')}")
-    click.echo(f"  Stability Score:  {_color_metric(result.stability_score, '{:.4f}', threshold=0.5)}")
+    click.echo(
+        f"  Stability Score:  {_color_metric(result.stability_score, '{:.4f}', threshold=0.5)}"
+    )
     click.echo(f"  Total Test Return:{_color_metric(result.total_test_return, '{:.2%}')}")
     click.echo(f"  Time:             {result.execution_time_ms:.0f}ms")
 

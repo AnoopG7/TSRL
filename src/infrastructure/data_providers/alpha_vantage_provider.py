@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Optional
@@ -28,18 +29,20 @@ class AlphaVantageProvider(BaseDataProvider):
 
     def __init__(
         self,
-        api_key: str,
+        api_key: Optional[str] = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
         use_cache: bool = True,
     ):
         super().__init__(max_retries, retry_delay)
-        self.api_key = api_key
+        self.api_key = api_key or os.environ.get("ALPHA_VANTAGE_API_KEY")
         self.use_cache = use_cache
         self.cache = get_cache() if use_cache else None
 
         if not self.api_key:
-            raise ValueError("Alpha Vantage API key is required")
+            raise ValueError(
+                "Alpha Vantage API key is required. Set ALPHA_VANTAGE_API_KEY in config/.env"
+            )
 
     def fetch_ohlcv(
         self,

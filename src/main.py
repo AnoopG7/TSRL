@@ -1,10 +1,14 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
+
+load_dotenv(Path(__file__).parent.parent / "config" / ".env")
 
 from config.settings import get_settings
 from src.infrastructure.database.connection import init_db
@@ -24,7 +28,10 @@ from src.strategies.momentum.ema_crossover import EMACrossoverStrategy, RSIMeanR
 from src.strategies.momentum.macd_strategy import MACDStrategy  # noqa
 from src.strategies.momentum.ma_ribbon import MovingAverageRibbonStrategy, TripleMAStrategy  # noqa
 from src.strategies.momentum.volume_strategies import VolumeProfileStrategy, VolumeBreakoutStrategy  # noqa
-from src.strategies.mean_reversion.bollinger_bands import BollingerBandsStrategy, BollingerBandsBreakoutStrategy  # noqa
+from src.strategies.mean_reversion.bollinger_bands import (
+    BollingerBandsStrategy,
+    BollingerBandsBreakoutStrategy,
+)  # noqa
 
 from src.application.services.backtest_service import BacktestService
 from src.application.services.data_service import DataService
@@ -55,6 +62,7 @@ app.add_middleware(
 
 
 # ==================== Request Models ====================
+
 
 class DataIngestRequest(BaseModel):
     symbol: str
@@ -126,6 +134,7 @@ class MLTrainRequest(BaseModel):
 
 
 # ==================== Endpoints ====================
+
 
 @app.get("/")
 async def root():
@@ -276,7 +285,9 @@ def _run_optimization(request: OptimizationRequest, optimizer_cls: type) -> dict
     )
 
     if isinstance(optimizer, RandomSearchOptimizer):
-        result = optimizer.optimize(strategy, df, request.param_grid, n_iter=request.n_iterations, config=bt_config)
+        result = optimizer.optimize(
+            strategy, df, request.param_grid, n_iter=request.n_iterations, config=bt_config
+        )
     else:
         result = optimizer.optimize(strategy, df, request.param_grid, config=bt_config)
 

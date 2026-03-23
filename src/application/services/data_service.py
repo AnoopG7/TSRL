@@ -5,6 +5,7 @@ from typing import Optional
 import pandas as pd
 
 from src.infrastructure.data_providers.yahoo_provider import YahooFinanceProvider
+from src.infrastructure.data_providers.alpha_vantage_provider import AlphaVantageProvider
 from src.infrastructure.data_providers.base import DataProviderError
 from src.infrastructure.database.repositories.ohlcv_repository import OHLCVRepository
 from src.data.generate_sample_data import generate_sample_ohlcv
@@ -30,6 +31,8 @@ class DataService:
         try:
             if source == "yahoo":
                 provider = YahooFinanceProvider()
+            elif source == "alpha_vantage":
+                provider = AlphaVantageProvider()
             else:
                 logger.warning(f"Unknown source '{source}', defaulting to Yahoo Finance")
                 provider = YahooFinanceProvider()
