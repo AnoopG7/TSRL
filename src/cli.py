@@ -76,7 +76,7 @@ def backtest(
     data_service = DataService()
     start_dt = datetime.fromisoformat(start_date)
     end_dt = datetime.fromisoformat(end_date)
-    df, data_source = data_service.fetch_data(symbol, start_dt, end_dt, timeframe, source=source)
+    df, data_source, _ = data_service.fetch_data(symbol, start_dt, end_dt, timeframe, source=source)
     click.echo(f"Data: {len(df)} bars ({data_source})")
 
     # Run backtest
@@ -160,7 +160,7 @@ def optimize(strategy, symbol, start_date, end_date, method, metric, n_iteration
     click.echo(f"Parameters: {list(param_grid.keys())}")
 
     data_service = DataService()
-    df, data_source = data_service.fetch_data(
+    df, data_source, _ = data_service.fetch_data(
         symbol, datetime.fromisoformat(start_date), datetime.fromisoformat(end_date)
     )
     click.echo(f"Data: {len(df)} bars ({data_source})\n")
@@ -227,7 +227,7 @@ def walkforward(strategy, symbol, start_date, end_date, train_days, test_days, c
         return
 
     data_service = DataService()
-    df, data_source = data_service.fetch_data(
+    df, data_source, _ = data_service.fetch_data(
         symbol, datetime.fromisoformat(start_date), datetime.fromisoformat(end_date)
     )
     click.echo(f"Data: {len(df)} bars ({data_source})\n")
@@ -279,7 +279,7 @@ def fetch_data(symbol, start_date, end_date, timeframe):
     click.echo(f"Fetching data for {symbol}...")
 
     data_service = DataService()
-    df, data_source = data_service.fetch_data(
+    df, data_source, _ = data_service.fetch_data(
         symbol,
         datetime.fromisoformat(start_date),
         datetime.fromisoformat(end_date),

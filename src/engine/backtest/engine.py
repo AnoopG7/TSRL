@@ -97,6 +97,7 @@ class BacktestEngine:
         trades = []
         position: Optional[Position] = None
         running_capital = config.initial_capital
+        pending_signal: Optional[int] = None  # Track signal for next bar entry
 
         for idx in range(len(signals)):
             current_bar = data.iloc[idx]
@@ -104,7 +105,35 @@ class BacktestEngine:
             timestamp = current_bar.name if hasattr(current_bar, "name") else data.index[idx]
             close_price = current_bar["close"]
 
-            if position is None:
+            # First, check if we have a pending entry from previous bar's exit
+            if pending_signal is not None and position is None:
+                # Execute the pending entry at this bar's open (simulated as close for simplicity)
+                if pending_signal == 1:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.LONG,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                        capital=running_capital,
+                    )
+                elif pending_signal == -1 and config.allow_shorting:
+                    position = self._open_position(
+                        symbol=strategy.name,
+                        timestamp=timestamp,
+                        price=close_price,
+                        side=PositionSide.SHORT,
+                        data=data,
+                        idx=idx,
+                        config=config,
+                        capital=running_capital,
+                    )
+                pending_signal = None
+
+            if position is None and pending_signal is None:
+                # No position and no pending entry - check for new signal
                 if signal == 1:
                     position = self._open_position(
                         symbol=strategy.name,
@@ -127,7 +156,7 @@ class BacktestEngine:
                         config=config,
                         capital=running_capital,
                     )
-            else:
+            elif position is not None:
                 exit_trade = False
 
                 if position.side == PositionSide.LONG and signal == -1:
@@ -147,28 +176,10 @@ class BacktestEngine:
                         running_capital += trade.pnl
                     position = None
 
-                    if signal == 1:
-                        position = self._open_position(
-                            symbol=strategy.name,
-                            timestamp=timestamp,
-                            price=close_price,
-                            side=PositionSide.LONG,
-                            data=data,
-                            idx=idx,
-                            config=config,
-                            capital=running_capital,
-                        )
-                    elif signal == -1 and config.allow_shorting:
-                        position = self._open_position(
-                            symbol=strategy.name,
-                            timestamp=timestamp,
-                            price=close_price,
-                            side=PositionSide.SHORT,
-                            data=data,
-                            idx=idx,
-                            config=config,
-                            capital=running_capital,
-                        )
+                    # Set pending signal for next bar - DO NOT enter immediately
+                    # This fixes look-ahead bias: signal is known at close,
+                    # but entry happens at next bar's open
+                    pending_signal = signal
 
         if position is not None:
             last_close = data.iloc[-1]["close"]
@@ -361,13 +372,28 @@ class VectorizedBacktestEngine(BacktestEngine):
         position_side = None
         entry_price = None
         entry_time = None
+        pending_signal = None  # Track signal for next bar entry to avoid look-ahead bias
 
         for idx in range(len(signals)):
             signal = signals.iloc[idx]["signal"]
             timestamp = signals.index[idx]
             close_price = data.iloc[idx]["close"]
 
-            if position_side is None:
+            # First, check if we have a pending entry from previous bar's exit
+            if pending_signal is not None and position_side is None:
+                # Execute the pending entry at this bar
+                if pending_signal == 1:
+                    position_side = "LONG"
+                    entry_price = close_price
+                    entry_time = timestamp
+                elif pending_signal == -1:
+                    position_side = "SHORT"
+                    entry_price = close_price
+                    entry_time = timestamp
+                pending_signal = None
+
+            if position_side is None and pending_signal is None:
+                # No position and no pending entry - check for new signal
                 if signal == 1:
                     position_side = "LONG"
                     entry_price = close_price
@@ -376,7 +402,7 @@ class VectorizedBacktestEngine(BacktestEngine):
                     position_side = "SHORT"
                     entry_price = close_price
                     entry_time = timestamp
-            else:
+            elif position_side is not None:
                 should_exit = False
                 if position_side == "LONG" and signal == -1:
                     should_exit = True
@@ -407,13 +433,9 @@ class VectorizedBacktestEngine(BacktestEngine):
                     trades.append(trade)
                     position_side = None
 
-                    if signal == 1:
-                        position_side = "LONG"
-                        entry_price = close_price
-                        entry_time = timestamp
-                    elif signal == -1:
-                        position_side = "SHORT"
-                        entry_price = close_price
-                        entry_time = timestamp
+                    # Set pending signal for next bar - DO NOT enter immediately
+                    # This fixes look-ahead bias: signal is known at close,
+                    # but entry happens at next bar's open
+                    pending_signal = signal
 
         return trades

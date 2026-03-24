@@ -122,7 +122,8 @@ class TestRiskMetricsCalculator:
             {"pnl": 75},
         ]
         result = RiskMetricsCalculator.calculate_profit_factor(trades)
-        assert result == float("inf")
+        # Capped at 100.0 to avoid infinity propagation in downstream calculations
+        assert result == 100.0
 
     def test_calculate_profit_factor_no_wins(self):
         trades = [

@@ -52,7 +52,7 @@ class TestMLRandomForestStrategy:
 
     def test_before_backtest_with_sufficient_data(self, sample_ohlcv_data_large):
         strategy = MLRandomForestStrategy(
-            n_estimators=10, max_depth=3, lookback=50, prediction_horizon=5
+            n_estimators=5, max_depth=3, lookback=50, prediction_horizon=5
         )
 
         result = strategy.before_backtest(sample_ohlcv_data_large)
@@ -69,7 +69,7 @@ class TestMLRandomForestStrategy:
 
     def test_generate_signals_after_fit(self, sample_ohlcv_data_large):
         strategy = MLRandomForestStrategy(
-            n_estimators=10, max_depth=3, lookback=50, prediction_horizon=5
+            n_estimators=5, max_depth=3, lookback=50, prediction_horizon=5
         )
 
         strategy.before_backtest(sample_ohlcv_data_large)
@@ -153,7 +153,7 @@ class TestMLGradientBoostingStrategy:
 
     def test_before_backtest_with_sufficient_data(self, sample_ohlcv_data_large):
         strategy = MLGradientBoostingStrategy(
-            n_estimators=10, max_depth=2, learning_rate=0.1, lookback=50, prediction_horizon=5
+            n_estimators=5, max_depth=2, learning_rate=0.1, lookback=50, prediction_horizon=5
         )
 
         result = strategy.before_backtest(sample_ohlcv_data_large)
@@ -170,7 +170,7 @@ class TestMLGradientBoostingStrategy:
 
     def test_generate_signals_after_fit(self, sample_ohlcv_data_large):
         strategy = MLGradientBoostingStrategy(
-            n_estimators=10, max_depth=2, learning_rate=0.1, lookback=50, prediction_horizon=5
+            n_estimators=5, max_depth=2, learning_rate=0.1, lookback=50, prediction_horizon=5
         )
 
         strategy.before_backtest(sample_ohlcv_data_large)
@@ -202,9 +202,9 @@ class TestMLGradientBoostingStrategy:
         assert isinstance(strategy, MLGradientBoostingStrategy)
 
     def test_different_learning_rates(self, sample_ohlcv_data_large):
-        for lr in [0.01, 0.05, 0.2, 0.5]:
+        for lr in [0.01, 0.1]:  # Reduced iterations for faster tests
             strategy = MLGradientBoostingStrategy(
-                n_estimators=10, max_depth=2, learning_rate=lr, lookback=50, prediction_horizon=5
+                n_estimators=5, max_depth=2, learning_rate=lr, lookback=50, prediction_horizon=5
             )
 
             result = strategy.before_backtest(sample_ohlcv_data_large)

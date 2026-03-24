@@ -40,23 +40,25 @@ interface BacktestState {
   reset: () => void;
 }
 
+export const FALLBACK_STRATEGIES = [
+  { name: 'ema_crossover', version: '1.0.0', type: 'momentum', description: 'EMA Crossover Strategy' },
+  { name: 'rsi_mean_reversion', version: '1.0.0', type: 'mean_reversion', description: 'RSI Mean Reversion' },
+  { name: 'macd', version: '1.0.0', type: 'momentum', description: 'MACD Crossover Strategy' },
+  { name: 'bollinger_bands', version: '1.0.0', type: 'mean_reversion', description: 'Bollinger Bands Bounce' },
+  { name: 'bbands', version: '1.0.0', type: 'breakout', description: 'Bollinger Bands Breakout' },
+  { name: 'ma_ribbon', version: '1.0.0', type: 'momentum', description: 'Moving Average Ribbon' },
+  { name: 'triple_ma', version: '1.0.0', type: 'momentum', description: 'Triple Moving Average' },
+  { name: 'volume_profile', version: '1.0.0', type: 'volume', description: 'Volume Profile Strategy' },
+  { name: 'volume_breakout', version: '1.0.0', type: 'volume', description: 'Volume Breakout Strategy' },
+  { name: 'ml_random_forest', version: '1.0.0', type: 'ml', description: 'ML Random Forest Classifier' },
+  { name: 'ml_gradient_boosting', version: '1.0.0', type: 'ml', description: 'ML Gradient Boosting Classifier' },
+];
+
 const initialState = {
   config: null,
   result: null,
   trades: [],
-  strategies: [
-    { name: 'ema_crossover', version: '1.0.0', type: 'momentum', description: 'EMA Crossover Strategy' },
-    { name: 'rsi_mean_reversion', version: '1.0.0', type: 'mean_reversion', description: 'RSI Mean Reversion' },
-    { name: 'macd', version: '1.0.0', type: 'momentum', description: 'MACD Crossover Strategy' },
-    { name: 'bollinger_bands', version: '1.0.0', type: 'mean_reversion', description: 'Bollinger Bands Bounce' },
-    { name: 'bbands', version: '1.0.0', type: 'breakout', description: 'Bollinger Bands Breakout' },
-    { name: 'ma_ribbon', version: '1.0.0', type: 'momentum', description: 'Moving Average Ribbon' },
-    { name: 'triple_ma', version: '1.0.0', type: 'momentum', description: 'Triple Moving Average' },
-    { name: 'volume_profile', version: '1.0.0', type: 'volume', description: 'Volume Profile Strategy' },
-    { name: 'volume_breakout', version: '1.0.0', type: 'volume', description: 'Volume Breakout Strategy' },
-    { name: 'ml_random_forest', version: '1.0.0', type: 'ml', description: 'ML Random Forest Classifier' },
-    { name: 'ml_gradient_boosting', version: '1.0.0', type: 'ml', description: 'ML Gradient Boosting Classifier' },
-  ],
+  strategies: [],  // Start empty - will be populated from API or fallback
   loading: false,
   error: null,
   activeTab: 'backtest' as const,

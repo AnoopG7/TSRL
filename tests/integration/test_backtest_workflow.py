@@ -47,7 +47,7 @@ class TestBacktestServiceWorkflow:
         self, mock_session_factory, mock_data_service_class, sample_ohlcv_dataframe
     ):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         mock_session = Mock()
@@ -88,7 +88,7 @@ class TestBacktestServiceWorkflow:
     @patch("src.application.services.backtest_service.DataService")
     def test_run_backtest_invalid_strategy(self, mock_data_service_class, sample_ohlcv_dataframe):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         service = BacktestService()
@@ -107,7 +107,7 @@ class TestBacktestServiceWorkflow:
         self, mock_engine_class, mock_data_service_class, sample_ohlcv_dataframe
     ):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         mock_result = Mock()
@@ -138,7 +138,7 @@ class TestBacktestServiceWorkflow:
     @patch("src.application.services.backtest_service.DataService")
     def test_extract_equity_curve(self, mock_data_service_class, sample_ohlcv_dataframe):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         service = BacktestService()
@@ -162,7 +162,7 @@ class TestBacktestServiceWorkflow:
     @patch("src.application.services.backtest_service.DataService")
     def test_extract_drawdown(self, mock_data_service_class, sample_ohlcv_dataframe):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         service = BacktestService()
@@ -183,7 +183,7 @@ class TestBacktestServiceWorkflow:
     @patch("src.application.services.backtest_service.DataService")
     def test_extract_monthly_returns(self, mock_data_service_class, sample_ohlcv_dataframe):
         mock_data_service = Mock()
-        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated")
+        mock_data_service.fetch_data.return_value = (sample_ohlcv_dataframe, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
         mock_data_service_class.return_value = mock_data_service
 
         service = BacktestService()

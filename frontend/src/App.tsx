@@ -4,7 +4,7 @@ import { Header } from './components/layout/Header';
 import { BacktestPage } from './pages/BacktestPage';
 import { ComparisonPage } from './pages/ComparisonPage';
 import type { BacktestConfig } from './lib/schemas';
-import { useBacktestStore } from './store';
+import { useBacktestStore, FALLBACK_STRATEGIES } from './store';
 import { useThemeStore } from './store/useThemeStore';
 import './styles/index.css';
 
@@ -24,17 +24,23 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Fetch strategies from API on load (fall back to hardcoded list)
+  // Fetch strategies from API on load, fall back to hardcoded list if API fails
   useEffect(() => {
-    axios.get(`${API_URL}/api/v1/strategies`)
-      .then((res) => {
+    const fetchStrategies = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/v1/strategies`);
         if (res.data.strategies && res.data.strategies.length > 0) {
           setStrategies(res.data.strategies);
+        } else {
+          // API returned empty - use fallback
+          setStrategies(FALLBACK_STRATEGIES);
         }
-      })
-      .catch(() => {
-        // Backend unreachable — keep the hardcoded fallback list
-      });
+      } catch {
+        // Backend unreachable - use hardcoded fallback
+        setStrategies(FALLBACK_STRATEGIES);
+      }
+    };
+    fetchStrategies();
   }, [setStrategies]);
 
   const runBacktest = async (config: BacktestConfig) => {

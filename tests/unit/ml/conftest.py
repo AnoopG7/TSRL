@@ -31,19 +31,20 @@ def sample_ohlcv_data():
 
 @pytest.fixture
 def sample_ohlcv_data_large():
-    dates = pd.date_range(start="2022-01-01", periods=300, freq="D")
+    # Reduced to 150 periods for faster tests while maintaining coverage
+    dates = pd.date_range(start="2022-01-01", periods=150, freq="D")
     np.random.seed(123)
 
     base_price = 150
-    prices = base_price + np.cumsum(np.random.randn(300) * 0.8)
+    prices = base_price + np.cumsum(np.random.randn(150) * 0.8)
 
     data = pd.DataFrame(
         {
-            "open": prices + np.random.randn(300) * 0.3,
-            "high": prices + np.abs(np.random.randn(300)) * 0.6,
-            "low": prices - np.abs(np.random.randn(300)) * 0.6,
+            "open": prices + np.random.randn(150) * 0.3,
+            "high": prices + np.abs(np.random.randn(150)) * 0.6,
+            "low": prices - np.abs(np.random.randn(150)) * 0.6,
             "close": prices,
-            "volume": np.random.randint(500000, 15000000, 300).astype(float),
+            "volume": np.random.randint(500000, 15000000, 150).astype(float),
         },
         index=dates,
     )

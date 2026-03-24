@@ -275,7 +275,20 @@ class WalkForwardAnalysis:
         test_sharpes = [w.test_metrics.get("sharpe_ratio", 0) for w in windows]
 
         test_returns_arr = np.array(test_returns)
-        stability = 1.0 - np.std(test_returns_arr) / (np.abs(np.mean(test_returns_arr)) + 1e-8)
+        mean_return = np.abs(np.mean(test_returns_arr))
+        std_return = np.std(test_returns_arr)
+
+        # Stability score: bounded to [0, 1] range
+        # Higher stability = lower coefficient of variation
+        if mean_return < 1e-8:
+            # Near-zero returns: stability based on absolute magnitude
+            stability = 1.0 / (1.0 + std_return)
+        else:
+            cv = std_return / mean_return  # Coefficient of variation
+            stability = 1.0 / (1.0 + cv)  # Maps [0, inf) to (0, 1]
+
+        # Ensure bounded to [0, 1]
+        stability = np.clip(stability, 0.0, 1.0)
 
         combined_train = {
             "avg_return": np.mean(train_returns),

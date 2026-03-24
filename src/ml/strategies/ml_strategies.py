@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 
@@ -20,16 +20,21 @@ class MLRandomForestStrategy(BaseStrategy):
         max_depth: int = 5,
         lookback: int = 50,
         prediction_horizon: int = 5,
+        min_train_samples: int = 100,
+        retrain_period: int = 20,
         **kwargs,
     ):
         self._n_estimators = n_estimators
         self._max_depth = max_depth
         self._lookback = lookback
         self._prediction_horizon = prediction_horizon
+        self._min_train_samples = min_train_samples
+        self._retrain_period = retrain_period  # Retrain every N bars
         self._model = None
         self._scaler = StandardScaler()
         self._feature_columns = None
         self._is_fitted = False
+        self._model_cache: Dict[int, tuple] = {}  # Cache models by index
         super().__init__(**kwargs)
 
     @property
@@ -82,38 +87,23 @@ class MLRandomForestStrategy(BaseStrategy):
                 step=1,
                 description="Number of periods to predict ahead",
             ),
+            "min_train_samples": StrategyParameter(
+                name="min_train_samples",
+                value=100,
+                min_value=50,
+                max_value=500,
+                step=10,
+                description="Minimum samples required before trading",
+            ),
+            "retrain_period": StrategyParameter(
+                name="retrain_period",
+                value=20,
+                min_value=5,
+                max_value=50,
+                step=5,
+                description="Retrain model every N bars",
+            ),
         }
-
-    def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
-        if (
-            len(data)
-            < self._lookback + self._prediction_horizon + 50
-        ):
-            return data
-
-        features = self._generate_features(data)
-        labels = self._generate_labels(data)
-
-        valid_idx = features.dropna().index.intersection(labels.dropna().index)
-        if len(valid_idx) < 50:
-            return data
-
-        X = features.loc[valid_idx]
-        y = labels.loc[valid_idx]
-
-        X_scaled = self._scaler.fit_transform(X)
-
-        self._model = RandomForestClassifier(
-            n_estimators=self._n_estimators,
-            max_depth=self._max_depth,
-            random_state=42,
-            n_jobs=-1,
-        )
-        self._model.fit(X_scaled, y)
-        self._feature_columns = X.columns.tolist()
-        self._is_fitted = True
-
-        return data
 
     def _generate_features(self, data: pd.DataFrame) -> pd.DataFrame:
         engineer = FeatureEngineer(data)
@@ -149,6 +139,30 @@ class MLRandomForestStrategy(BaseStrategy):
 
         return labels
 
+    def _train_model_on_window(self, X: pd.DataFrame, y: pd.Series) -> None:
+        """Train the model on a specific window of data."""
+        if len(X) < self._min_train_samples:
+            self._is_fitted = False
+            return
+
+        X_scaled = self._scaler.fit_transform(X)
+        self._model = RandomForestClassifier(
+            n_estimators=self._n_estimators,
+            max_depth=self._max_depth,
+            random_state=42,
+            n_jobs=-1,
+        )
+        self._model.fit(X_scaled, y)
+        self._feature_columns = X.columns.tolist()
+        self._is_fitted = True
+
+    def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Don't train on full data - just prepare the data
+        # Actual training happens incrementally in generate_signals
+        if len(data) < self._lookback + self._prediction_horizon + self._min_train_samples:
+            return data
+        return data
+
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
@@ -156,28 +170,57 @@ class MLRandomForestStrategy(BaseStrategy):
         signals["close"] = close
         signals["signal"] = 0
 
-        if not self._is_fitted or self._model is None:
+        # Generate features for the entire dataset
+        features = self._generate_features(data)
+        labels = self._generate_labels(data)
+
+        if len(features) == 0:
             return signals
 
-        try:
-            features = self._generate_features(data)
+        # Find valid indices where both features and labels are available
+        valid_idx = features.dropna().index.intersection(labels.dropna().index)
+        if len(valid_idx) < self._min_train_samples:
+            return signals
 
-            if len(features) == 0:
-                return signals
+        # Sort valid indices
+        valid_idx = valid_idx.sort_values()
+        valid_list = valid_idx.tolist()
 
-            aligned_signals = signals.loc[features.index].copy()
-            aligned_signals["signal"] = 0
+        # Walk-forward training: train on expanding window, predict on next period
+        # Only use data available up to each point
+        last_train_idx = -1
 
-            X_scaled = self._scaler.transform(features)
+        for i, current_idx in enumerate(valid_list):
+            # Determine position in the original data
+            if current_idx not in features.index:
+                continue
 
-            predictions = self._model.predict(X_scaled)
+            # Find training window: use only data BEFORE current point
+            # Training window ends at current_idx - retrain_period (to avoid lookahead)
+            train_end_pos = max(0, i - self._retrain_period)
 
-            aligned_signals["signal"] = predictions
+            if train_end_pos > 0 and train_end_pos != last_train_idx:
+                # Retrain model on expanding window
+                train_indices = valid_list[:train_end_pos]
+                X_train = features.loc[train_indices]
+                y_train = labels.loc[train_indices]
 
-            signals["signal"] = aligned_signals["signal"]
+                self._train_model_on_window(X_train, y_train)
+                last_train_idx = train_end_pos
 
-        except Exception as e:
-            logger.warning(f"ML RandomForest signal generation failed: {e}")
+            # Predict if we have a trained model
+            if self._is_fitted and self._model is not None:
+                try:
+                    X_current = features.loc[[current_idx]]
+                    if len(X_current.columns) != len(self._feature_columns):
+                        # Align columns
+                        X_current = X_current[self._feature_columns]
+
+                    X_scaled = self._scaler.transform(X_current)
+                    prediction = self._model.predict(X_scaled)[0]
+                    signals.loc[current_idx, "signal"] = prediction
+                except Exception as e:
+                    logger.debug(f"Prediction failed at {current_idx}: {e}")
 
         return signals
 
@@ -194,6 +237,8 @@ class MLGradientBoostingStrategy(BaseStrategy):
         learning_rate: float = 0.1,
         lookback: int = 50,
         prediction_horizon: int = 5,
+        min_train_samples: int = 100,
+        retrain_period: int = 20,
         **kwargs,
     ):
         self._n_estimators = n_estimators
@@ -201,9 +246,12 @@ class MLGradientBoostingStrategy(BaseStrategy):
         self._learning_rate = learning_rate
         self._lookback = lookback
         self._prediction_horizon = prediction_horizon
+        self._min_train_samples = min_train_samples
+        self._retrain_period = retrain_period
         self._model = None
         self._scaler = StandardScaler()
         self._is_fitted = False
+        self._feature_columns = None
         super().__init__(**kwargs)
 
     @property
@@ -264,37 +312,23 @@ class MLGradientBoostingStrategy(BaseStrategy):
                 step=1,
                 description="Prediction horizon",
             ),
+            "min_train_samples": StrategyParameter(
+                name="min_train_samples",
+                value=100,
+                min_value=50,
+                max_value=500,
+                step=10,
+                description="Minimum samples required before trading",
+            ),
+            "retrain_period": StrategyParameter(
+                name="retrain_period",
+                value=20,
+                min_value=5,
+                max_value=50,
+                step=5,
+                description="Retrain model every N bars",
+            ),
         }
-
-    def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
-        if (
-            len(data)
-            < self._lookback + self._prediction_horizon + 50
-        ):
-            return data
-
-        features = self._generate_features(data)
-        labels = self._generate_labels(data)
-
-        valid_idx = features.dropna().index.intersection(labels.dropna().index)
-        if len(valid_idx) < 50:
-            return data
-
-        X = features.loc[valid_idx]
-        y = labels.loc[valid_idx]
-
-        X_scaled = self._scaler.fit_transform(X)
-
-        self._model = GradientBoostingClassifier(
-            n_estimators=self._n_estimators,
-            max_depth=self._max_depth,
-            learning_rate=self._learning_rate,
-            random_state=42,
-        )
-        self._model.fit(X_scaled, y)
-        self._is_fitted = True
-
-        return data
 
     def _generate_features(self, data: pd.DataFrame) -> pd.DataFrame:
         engineer = FeatureEngineer(data)
@@ -328,6 +362,30 @@ class MLGradientBoostingStrategy(BaseStrategy):
 
         return labels
 
+    def _train_model_on_window(self, X: pd.DataFrame, y: pd.Series) -> None:
+        """Train the model on a specific window of data."""
+        if len(X) < self._min_train_samples:
+            self._is_fitted = False
+            return
+
+        X_scaled = self._scaler.fit_transform(X)
+        self._model = GradientBoostingClassifier(
+            n_estimators=self._n_estimators,
+            max_depth=self._max_depth,
+            learning_rate=self._learning_rate,
+            random_state=42,
+        )
+        self._model.fit(X_scaled, y)
+        self._feature_columns = X.columns.tolist()
+        self._is_fitted = True
+
+    def before_backtest(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Don't train on full data - just prepare the data
+        # Actual training happens incrementally in generate_signals
+        if len(data) < self._lookback + self._prediction_horizon + self._min_train_samples:
+            return data
+        return data
+
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         close = data["close"]
 
@@ -335,28 +393,50 @@ class MLGradientBoostingStrategy(BaseStrategy):
         signals["close"] = close
         signals["signal"] = 0
 
-        if not self._is_fitted or self._model is None:
+        # Generate features for the entire dataset
+        features = self._generate_features(data)
+        labels = self._generate_labels(data)
+
+        if len(features) == 0:
             return signals
 
-        try:
-            features = self._generate_features(data)
+        # Find valid indices where both features and labels are available
+        valid_idx = features.dropna().index.intersection(labels.dropna().index)
+        if len(valid_idx) < self._min_train_samples:
+            return signals
 
-            if len(features) == 0:
-                return signals
+        # Sort valid indices
+        valid_idx = valid_idx.sort_values()
+        valid_list = valid_idx.tolist()
 
-            aligned_signals = signals.loc[features.index].copy()
-            aligned_signals["signal"] = 0
+        # Walk-forward training: train on expanding window, predict on next period
+        last_train_idx = -1
 
-            X_scaled = self._scaler.transform(features)
+        for i, current_idx in enumerate(valid_list):
+            # Find training window: use only data BEFORE current point
+            train_end_pos = max(0, i - self._retrain_period)
 
-            predictions = self._model.predict(X_scaled)
+            if train_end_pos > 0 and train_end_pos != last_train_idx:
+                # Retrain model on expanding window
+                train_indices = valid_list[:train_end_pos]
+                X_train = features.loc[train_indices]
+                y_train = labels.loc[train_indices]
 
-            aligned_signals["signal"] = predictions
+                self._train_model_on_window(X_train, y_train)
+                last_train_idx = train_end_pos
 
-            signals["signal"] = aligned_signals["signal"]
+            # Predict if we have a trained model
+            if self._is_fitted and self._model is not None:
+                try:
+                    X_current = features.loc[[current_idx]]
+                    if len(X_current.columns) != len(self._feature_columns):
+                        X_current = X_current[self._feature_columns]
 
-        except Exception as e:
-            logger.warning(f"ML GradientBoosting signal generation failed: {e}")
+                    X_scaled = self._scaler.transform(X_current)
+                    prediction = self._model.predict(X_scaled)[0]
+                    signals.loc[current_idx, "signal"] = prediction
+                except Exception as e:
+                    logger.debug(f"Prediction failed at {current_idx}: {e}")
 
         return signals
 

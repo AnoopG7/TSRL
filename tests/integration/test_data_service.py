@@ -47,10 +47,12 @@ class TestDataService:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
+        df, source, quality = service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
 
         assert isinstance(df, pd.DataFrame)
         assert source == "live"
+        assert quality["is_simulated"] == False
+        assert quality["warning_message"] is None
         mock_provider.fetch_ohlcv.assert_called_once()
 
     @patch("src.application.services.data_service.YahooFinanceProvider")
@@ -64,10 +66,12 @@ class TestDataService:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
+        df, source, quality = service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
 
         assert isinstance(df, pd.DataFrame)
         assert source == "simulated"
+        assert quality["is_simulated"] == True
+        assert quality["warning_message"] is not None
         assert len(df) > 0
 
     @patch("src.application.services.data_service.YahooFinanceProvider")
@@ -84,7 +88,7 @@ class TestDataService:
             start_date = datetime(2023, 1, 1)
             end_date = datetime(2023, 4, 10)
 
-            df, source = service.fetch_data("AAPL", start_date, end_date, "1d")
+            df, source, _ = service.fetch_data("AAPL", start_date, end_date, "1d")
 
             assert isinstance(df, pd.DataFrame)
             assert source == "simulated"
@@ -100,7 +104,7 @@ class TestDataService:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", source="unknown")
+        df, source, _ = service.fetch_data("AAPL", start_date, end_date, "1d", source="unknown")
 
         assert source == "live"
 
@@ -574,7 +578,7 @@ class TestDataServiceUnknownSource:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source = service.fetch_data("AAPL", start_date, end_date, "1d", source="unknown_source")
+        df, source, _ = service.fetch_data("AAPL", start_date, end_date, "1d", source="unknown_source")
 
         assert isinstance(df, pd.DataFrame)
         assert source == "live"

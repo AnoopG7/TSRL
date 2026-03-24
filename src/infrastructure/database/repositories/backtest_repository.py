@@ -17,6 +17,7 @@ class BacktestRepository:
     def __init__(self, session: Optional[Session] = None):
         self._provided_session = session
         self._session = None
+        self._owns_session = False
 
     @property
     def session(self) -> Session:
@@ -25,7 +26,14 @@ class BacktestRepository:
         if self._session is None:
             self._session_factory = get_session_factory()
             self._session = self._session_factory()
+            self._owns_session = True
         return self._session
+
+    def __enter__(self) -> "BacktestRepository":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def create(
         self,
@@ -145,6 +153,7 @@ class TradeRepository:
     def __init__(self, session: Optional[Session] = None):
         self._provided_session = session
         self._session = None
+        self._owns_session = False
 
     @property
     def session(self) -> Session:
@@ -153,7 +162,14 @@ class TradeRepository:
         if self._session is None:
             self._session_factory = get_session_factory()
             self._session = self._session_factory()
+            self._owns_session = True
         return self._session
+
+    def __enter__(self) -> "TradeRepository":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def create(
         self,

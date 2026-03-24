@@ -90,13 +90,28 @@ class StrategyRegistry:
             if param_name not in params:
                 return False, f"Missing required parameter: {param_name}"
 
+            value = params[param_name]
             param_def = required_params[param_name]
+
+            # Type validation - infer expected type from default value
+            if hasattr(param_def, "value"):
+                expected_type = type(param_def.value)
+                if expected_type == int and not isinstance(value, int):
+                    return False, f"Parameter '{param_name}' must be an integer, got {type(value).__name__}"
+                elif expected_type == float and not isinstance(value, (int, float)):
+                    return False, f"Parameter '{param_name}' must be a number, got {type(value).__name__}"
+                elif expected_type == str and not isinstance(value, str):
+                    return False, f"Parameter '{param_name}' must be a string, got {type(value).__name__}"
+                elif expected_type == bool and not isinstance(value, bool):
+                    return False, f"Parameter '{param_name}' must be a boolean, got {type(value).__name__}"
+
+            # Range validation
             if hasattr(param_def, "min_value") and param_def.min_value is not None:
-                if params[param_name] < param_def.min_value:
+                if value < param_def.min_value:
                     return False, f"Parameter '{param_name}' below minimum: {param_def.min_value}"
 
             if hasattr(param_def, "max_value") and param_def.max_value is not None:
-                if params[param_name] > param_def.max_value:
+                if value > param_def.max_value:
                     return False, f"Parameter '{param_name}' above maximum: {param_def.max_value}"
 
         return True, None

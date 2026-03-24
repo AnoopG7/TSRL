@@ -258,7 +258,35 @@ class TestRandomOptimization:
 
 
 class TestGeneticOptimization:
-    def test_genetic_optimization(self):
+    @patch("src.main.DataService")
+    @patch("src.main.GeneticOptimizer")
+    def test_genetic_optimization(self, mock_optimizer_class, mock_data_service_class):
+        # Mock data service
+        import pandas as pd
+        import numpy as np
+        dates = pd.date_range(start="2023-01-01", periods=100, freq="D")
+        mock_df = pd.DataFrame({
+            "open": np.random.randn(100) + 100,
+            "high": np.random.randn(100) + 101,
+            "low": np.random.randn(100) + 99,
+            "close": np.random.randn(100) + 100,
+            "volume": np.random.randint(1000000, 10000000, 100).astype(float),
+        }, index=dates)
+        mock_data_service = MagicMock()
+        mock_data_service.fetch_data.return_value = (mock_df, "simulated", {"is_simulated": True, "warning_message": None, "original_exception": None})
+        mock_data_service_class.return_value = mock_data_service
+
+        # Mock optimizer
+        mock_result = MagicMock()
+        mock_result.best_score = 1.5
+        mock_result.best_params = {"fast_period": 10, "slow_period": 26}
+        mock_result.total_iterations = 10
+        mock_result.execution_time_ms = 100.0
+        mock_result.all_results = [{"params": {"fast_period": 10, "slow_period": 26}, "score": 1.5, "success": True}]
+        mock_optimizer = MagicMock()
+        mock_optimizer.optimize.return_value = mock_result
+        mock_optimizer_class.return_value = mock_optimizer
+
         response = client.post("/api/v1/optimization/genetic", json={
             "strategy_name": "ema_crossover",
             "symbol": "AAPL",
@@ -308,7 +336,23 @@ class TestWalkForward:
 
 
 class TestMLTrain:
-    def test_ml_train_random_forest(self):
+    @patch("src.main.BacktestService")
+    def test_ml_train_random_forest(self, mock_service_class):
+        # Mock backtest service
+        mock_result = MagicMock()
+        mock_result.data_source = "simulated"
+        mock_result.final_capital = 105000.0
+        mock_result.total_return = 0.05
+        mock_result.total_trades = 10
+        mock_result.metrics = {"sharpe_ratio": 1.5, "max_drawdown_pct": 5.0}
+        mock_result.execution_time_ms = 100.0
+        mock_result.equity_curve = [{"date": "2023-01-01", "equity": 100000}, {"date": "2024-01-01", "equity": 105000}]
+        mock_result.trades = []
+
+        mock_service = MagicMock()
+        mock_service.run_backtest.return_value = mock_result
+        mock_service_class.return_value = mock_service
+
         response = client.post("/api/v1/ml/train", json={
             "strategy_name": "ml_random_forest",
             "symbol": "AAPL",
@@ -322,7 +366,23 @@ class TestMLTrain:
         assert "results" in data
         assert "equity_curve" in data
 
-    def test_ml_train_gradient_boosting(self):
+    @patch("src.main.BacktestService")
+    def test_ml_train_gradient_boosting(self, mock_service_class):
+        # Mock backtest service
+        mock_result = MagicMock()
+        mock_result.data_source = "simulated"
+        mock_result.final_capital = 108000.0
+        mock_result.total_return = 0.08
+        mock_result.total_trades = 15
+        mock_result.metrics = {"sharpe_ratio": 1.8, "max_drawdown_pct": 4.0}
+        mock_result.execution_time_ms = 120.0
+        mock_result.equity_curve = [{"date": "2023-01-01", "equity": 100000}, {"date": "2024-01-01", "equity": 108000}]
+        mock_result.trades = []
+
+        mock_service = MagicMock()
+        mock_service.run_backtest.return_value = mock_result
+        mock_service_class.return_value = mock_service
+
         response = client.post("/api/v1/ml/train", json={
             "strategy_name": "ml_gradient_boosting",
             "symbol": "AAPL",

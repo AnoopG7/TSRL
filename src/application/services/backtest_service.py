@@ -65,7 +65,7 @@ class BacktestService:
         # Fetch data
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date)
-        df, data_source = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
+        df, data_source, _ = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
 
         # Configure and run engine
         config = BacktestConfig(
@@ -122,7 +122,7 @@ class BacktestService:
         # Fetch data once
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date)
-        df, data_source = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
+        df, data_source, _ = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
 
         config = BacktestConfig(
             initial_capital=initial_capital,

@@ -45,8 +45,8 @@ def init_db() -> None:
     """Initialize the database using Alembic migrations.
 
     Runs 'alembic upgrade head' to apply all pending migrations.
-    This ensures schema changes always go through the migration system
-    instead of bypassing it with create_all().
+    This ensures schema changes always go through the migration system.
+    Fails fast if alembic is unavailable instead of bypassing migrations.
     """
     import subprocess
     import sys
@@ -58,10 +58,17 @@ def init_db() -> None:
             text=True,
         )
         if result.returncode != 0:
-            # If alembic fails (e.g., first run with no DB), fall back to create_all
-            engine = get_engine()
-            Base.metadata.create_all(bind=engine)
-    except Exception:
-        # Fallback: create tables directly if alembic is unavailable
-        engine = get_engine()
-        Base.metadata.create_all(bind=engine)
+            # Fail fast - don't bypass migrations with create_all
+            raise RuntimeError(
+                f"Alembic migration failed: {result.stderr}\n"
+                "Run 'alembic upgrade head' manually or check your migration setup."
+            )
+    except FileNotFoundError as e:
+        # Alembic not installed
+        raise RuntimeError(
+            "Alembic is not installed. Install it with: pip install alembic\n"
+            "Database migrations require alembic to be available."
+        ) from e
+    except Exception as e:
+        # Re-raise any other exceptions - don't silently fallback to create_all
+        raise RuntimeError(f"Database initialization failed: {e}") from e

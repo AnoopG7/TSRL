@@ -227,7 +227,9 @@ class GeneticOptimizer(BaseOptimizer):
         self.n_generations = 30
         self.mutation_rate = 0.1
         self.crossover_rate = 0.7
-        self.elite_size = 2
+        self.elite_size = 4  # Increased from 2 to maintain diversity
+        self.tournament_size = 5  # For tournament selection
+        self.mutation_amount = 0.2  # Probability of mutating to random value
 
     def optimize(
         self,
@@ -274,18 +276,34 @@ class GeneticOptimizer(BaseOptimizer):
             if self.config.verbose:
                 logger.info(f"Gen {generation + 1}: Best score = {best_score:.4f}")
 
-            parents = [p for p, _ in evaluated[: self.elite_size]]
-            offspring = parents.copy()
+            # Elite individuals (guaranteed to survive)
+            elites = [p for p, _ in evaluated[: self.elite_size]]
+            offspring = elites.copy()
+
+            # Tournament selection for parents - maintains diversity better than pure elite selection
+            def tournament_select():
+                tournament = random.sample(evaluated, min(self.tournament_size, len(evaluated)))
+                tournament.sort(key=lambda x: x[1]["score"], reverse=self.config.maximize)
+                return tournament[0][0]
 
             while len(offspring) < self.population_size:
-                if random.random() < self.crossover_rate and len(parents) >= 2:
-                    parent1, parent2 = random.sample(parents, 2)
+                # Select two parents via tournament selection (not just from elites)
+                parent1 = tournament_select()
+                parent2 = tournament_select()
+
+                if random.random() < self.crossover_rate:
                     child = self._crossover(parent1, parent2)
                 else:
-                    child = random.choice(parents).copy()
+                    # Asexual reproduction - copy one parent
+                    child = parent1.copy()
 
+                # Mutation: either perturb or random reset
                 if random.random() < self.mutation_rate:
                     child = self._mutate(child, param_grid)
+                elif random.random() < self.mutation_amount:
+                    # Random reset mutation - jump to anywhere in search space
+                    key = random.choice(list(param_grid.keys()))
+                    child[key] = random.choice(param_grid[key])
 
                 offspring.append(child)
 

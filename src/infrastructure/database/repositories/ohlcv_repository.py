@@ -16,6 +16,7 @@ class OHLCVRepository:
     def __init__(self, session: Optional[Session] = None):
         self._provided_session = session
         self._session = None
+        self._owns_session = False
 
     @property
     def session(self) -> Session:
@@ -24,7 +25,14 @@ class OHLCVRepository:
         if self._session is None:
             self._session_factory = get_session_factory()
             self._session = self._session_factory()
+            self._owns_session = True
         return self._session
+
+    def __enter__(self) -> "OHLCVRepository":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def get_or_create_symbol(
         self,

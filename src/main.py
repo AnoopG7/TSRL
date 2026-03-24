@@ -273,7 +273,7 @@ def _run_optimization(request: OptimizationRequest, optimizer_cls: type) -> dict
     data_service = DataService()
     start_dt = datetime.fromisoformat(request.start_date)
     end_dt = datetime.fromisoformat(request.end_date)
-    df, data_source = data_service.fetch_data(request.symbol, start_dt, end_dt, request.timeframe)
+    df, data_source, _ = data_service.fetch_data(request.symbol, start_dt, end_dt, request.timeframe)
 
     opt_config = OptimizationConfig(metric=request.metric)
     optimizer = optimizer_cls(config=opt_config)
@@ -359,7 +359,7 @@ async def run_walkforward(request: WalkForwardRequest):
         data_service = DataService()
         start_dt = datetime.fromisoformat(request.start_date)
         end_dt = datetime.fromisoformat(request.end_date)
-        df, data_source = data_service.fetch_data(
+        df, data_source, _ = data_service.fetch_data(
             request.symbol, start_dt, end_dt, request.timeframe
         )
 

@@ -110,7 +110,13 @@ class RiskMetricsCalculator:
         gross_loss = abs(sum(t["pnl"] for t in closed_trades if t["pnl"] < 0))
 
         if gross_loss == 0:
-            return float("inf") if gross_profit > 0 else 0.0
+            if gross_profit > 0:
+                # All trades won - return a large but finite value
+                # Cap at 100 to avoid infinity propagation in calculations
+                return 100.0
+            else:
+                # No profit, no loss - undefined, return 1.0 (neutral)
+                return 1.0
 
         return gross_profit / gross_loss
 
