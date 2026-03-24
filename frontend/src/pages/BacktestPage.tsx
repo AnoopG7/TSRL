@@ -10,13 +10,11 @@ import { EquityCurveChart, DrawdownChart, MonthlyReturnsHeatmap } from '../compo
 interface BacktestPageProps {
   strategies: Strategy[];
   onRunBacktest: (config: BacktestConfig) => Promise<void>;
-  onGenerateDemo: () => void;
 }
 
 export const BacktestPage: React.FC<BacktestPageProps> = ({
   strategies,
   onRunBacktest,
-  onGenerateDemo,
 }) => {
   const { result, trades, loading, error, equityCurve, drawdownSeries, monthlyReturns } = useBacktestStore();
   const [chartTab, setChartTab] = useState<'equity' | 'drawdown' | 'monthly'>('equity');
@@ -28,7 +26,7 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
   } = useForm<BacktestConfig>({
     resolver: zodResolver(BacktestConfigSchema),
     defaultValues: {
-      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || 'ema_crossover',
+      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || '',
       symbol: 'AAPL',
       start_date: '2023-01-01',
       end_date: '2024-01-01',
@@ -98,9 +96,6 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
             <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? 'Running...' : 'Run Backtest'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={onGenerateDemo}>
-                Demo Mode
               </button>
             </div>
           </form>

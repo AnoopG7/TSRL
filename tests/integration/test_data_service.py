@@ -56,7 +56,7 @@ class TestDataService:
         mock_provider.fetch_ohlcv.assert_called_once()
 
     @patch("src.application.services.data_service.YahooFinanceProvider")
-    def test_fetch_data_fallback_to_simulated(self, mock_yahoo_class):
+    def test_fetch_data_raises_error_on_provider_failure(self, mock_yahoo_class):
         mock_provider = Mock()
         mock_provider.fetch_ohlcv.side_effect = DataProviderError("Network error")
         mock_yahoo_class.return_value = mock_provider
@@ -66,32 +66,8 @@ class TestDataService:
         start_date = datetime(2023, 1, 1)
         end_date = datetime(2023, 4, 10)
 
-        df, source, quality = service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
-
-        assert isinstance(df, pd.DataFrame)
-        assert source == "simulated"
-        assert quality["is_simulated"] == True
-        assert quality["warning_message"] is not None
-        assert len(df) > 0
-
-    @patch("src.application.services.data_service.YahooFinanceProvider")
-    def test_fetch_data_exception_fallback(self, mock_yahoo_class, sample_ohlcv):
-        mock_provider = Mock()
-        mock_provider.fetch_ohlcv.side_effect = Exception("Unknown error")
-        mock_yahoo_class.return_value = mock_provider
-
-        with patch(
-            "src.application.services.data_service.generate_sample_ohlcv", return_value=sample_ohlcv
-        ):
-            service = DataService()
-
-            start_date = datetime(2023, 1, 1)
-            end_date = datetime(2023, 4, 10)
-
-            df, source, _ = service.fetch_data("AAPL", start_date, end_date, "1d")
-
-            assert isinstance(df, pd.DataFrame)
-            assert source == "simulated"
+        with pytest.raises(ValueError, match="Data fetch failed for AAPL"):
+            service.fetch_data("AAPL", start_date, end_date, "1d", "yahoo")
 
     @patch("src.application.services.data_service.YahooFinanceProvider")
     def test_fetch_data_different_sources(self, mock_yahoo_class, sample_ohlcv):

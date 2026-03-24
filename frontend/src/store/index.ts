@@ -1,1 +1,1 @@
-export { useBacktestStore, FALLBACK_STRATEGIES } from './useBacktestStore';
+export { useBacktestStore } from './useBacktestStore';

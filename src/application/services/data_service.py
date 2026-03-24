@@ -8,7 +8,6 @@ from src.infrastructure.data_providers.yahoo_provider import YahooFinanceProvide
 from src.infrastructure.data_providers.alpha_vantage_provider import AlphaVantageProvider
 from src.infrastructure.data_providers.base import DataProviderError
 from src.infrastructure.database.repositories.ohlcv_repository import OHLCVRepository
-from src.data.generate_sample_data import generate_sample_ohlcv
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class DataService:
     ) -> tuple[pd.DataFrame, str, dict]:
         """
         Fetch market data. Returns (dataframe, data_source_label, quality_metadata).
-        Falls back to simulated data if provider fails.
+        Raises an error if the provider fails.
 
         Metadata includes:
         - is_simulated: bool - True if using generated/simulated data
@@ -56,18 +55,9 @@ class DataService:
             }
 
         except Exception as e:
-            warning_msg = f"Data fetch failed for {symbol}: {type(e).__name__}: {e}. Using simulated data."
-            logger.warning(warning_msg)
-            df = generate_sample_ohlcv(
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            return df, "simulated", {
-                "is_simulated": True,
-                "warning_message": warning_msg,
-                "original_exception": str(e),
-            }
+            error_msg = f"Data fetch failed for {symbol}: {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
 
     def ingest_and_persist(
         self,

@@ -62,7 +62,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     formState: { errors },
   } = useForm<PortfolioConfig>({
     defaultValues: {
-      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || 'ema_crossover',
+      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || '',
       symbols: 'AAPL,GOOGL,MSFT',
       weights: '',
       start_date: '2023-01-01',
