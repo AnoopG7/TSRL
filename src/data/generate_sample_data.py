@@ -19,7 +19,8 @@ def generate_sample_ohlcv(
 
     n_bars = (end_date - start_date).days
 
-    np.random.seed(42)
+    # Use symbol hash for seed to get different data per symbol
+    np.random.seed(hash(symbol) % (2**31))
 
     returns = np.random.normal(drift, volatility, n_bars)
     returns = np.clip(returns, -0.1, 0.1)

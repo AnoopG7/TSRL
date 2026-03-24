@@ -292,6 +292,129 @@ def fetch_data(symbol, start_date, end_date, timeframe):
     click.echo(df.head())
 
 
+@cli.command()
+@click.option("--strategy", "-s", required=True, help="Strategy name")
+@click.option("--symbols", required=True, help="Comma-separated symbols (e.g., AAPL,GOOGL,MSFT)")
+@click.option("--weights", default=None, help="Comma-separated weights (e.g., 0.4,0.3,0.3)")
+@click.option("--start-date", required=True, help="Start date (YYYY-MM-DD)")
+@click.option("--end-date", required=True, help="End date (YYYY-MM-DD)")
+@click.option("--capital", default=100000.0, help="Initial capital")
+@click.option(
+    "--rebalance",
+    type=click.Choice(["none", "monthly", "quarterly", "yearly"]),
+    default="none",
+    help="Rebalancing frequency",
+)
+@click.option("--threshold", default=None, type=float, help="Rebalance threshold (e.g., 0.05 for 5%)")
+@click.option("--benchmark", default=None, help="Benchmark symbol for beta/alpha (e.g., SPY)")
+def portfolio(strategy, symbols, weights, start_date, end_date, capital, rebalance, threshold, benchmark):
+    """Run portfolio backtest with multiple symbols."""
+    click.echo(f"\n{click.style('TSRL Portfolio Backtest', fg='cyan', bold=True)}")
+    click.echo(f"Strategy: {click.style(strategy, fg='yellow')}")
+
+    # Parse symbols and weights
+    symbol_list = [s.strip() for s in symbols.split(",")]
+    click.echo(f"Symbols:  {', '.join(symbol_list)}")
+
+    weight_dict = None
+    if weights:
+        weight_list = [float(w.strip()) for w in weights.split(",")]
+        if len(weight_list) != len(symbol_list):
+            click.echo(click.style("Error: Number of weights must match number of symbols", fg="red"))
+            return
+        weight_dict = dict(zip(symbol_list, weight_list))
+        click.echo(f"Weights:  {weight_dict}")
+    else:
+        click.echo(f"Weights:  Equal ({1/len(symbol_list):.2%} each)")
+
+    click.echo(f"Period:   {start_date} -> {end_date}")
+    click.echo(f"Capital:  ${capital:,.0f}")
+    if rebalance != "none":
+        click.echo(f"Rebalance: {rebalance}")
+    if threshold:
+        click.echo(f"Threshold: {threshold:.1%}")
+    click.echo()
+
+    # Create strategy
+    strat = StrategyRegistry.create(strategy)
+    if strat is None:
+        click.echo(click.style(f"Error: Strategy '{strategy}' not found.", fg="red"))
+        return
+
+    # Fetch data for all symbols
+    data_service = DataService()
+    start_dt = datetime.fromisoformat(start_date)
+    end_dt = datetime.fromisoformat(end_date)
+
+    symbols_data = {}
+    for symbol in symbol_list:
+        df, source, _ = data_service.fetch_data(symbol, start_dt, end_dt)
+        symbols_data[symbol] = df
+        click.echo(f"  {symbol}: {len(df)} bars ({source})")
+
+    # Fetch benchmark if specified
+    benchmark_data = None
+    if benchmark:
+        benchmark_df, _, _ = data_service.fetch_data(benchmark, start_dt, end_dt)
+        benchmark_data = benchmark_df
+        click.echo(f"  Benchmark {benchmark}: {len(benchmark_df)} bars")
+
+    # Configure portfolio engine
+    from src.engine.backtest.portfolio_engine import (
+        EnhancedPortfolioBacktestEngine,
+        PortfolioConfig,
+        RebalanceFrequency,
+    )
+
+    config = PortfolioConfig(
+        initial_capital=capital,
+        weights=weight_dict,
+        rebalance_frequency=RebalanceFrequency(rebalance),
+        rebalance_threshold=threshold,
+        benchmark_symbol=benchmark,
+    )
+
+    engine = EnhancedPortfolioBacktestEngine(config)
+    result = engine.run(strat, symbols_data, benchmark_data, config)
+
+    # Display results
+    click.echo(f"\n{'=' * 60}")
+    click.echo(click.style(" Portfolio Backtest Results", fg="cyan", bold=True))
+    click.echo(f"{'=' * 60}")
+
+    ret_color = "green" if result.total_return >= 0 else "red"
+    click.echo(f"  Total Return:     {click.style(f'{result.total_return * 100:.2f}%', fg=ret_color)}")
+    click.echo(f"  Sharpe Ratio:     {_color_metric(result.sharpe_ratio, '{:.2f}')}")
+    click.echo(f"  Max Drawdown:     {click.style(f'{result.max_drawdown * 100:.2f}%', fg='red')}")
+    click.echo(f"  Total Trades:     {result.total_trades}")
+    click.echo(f"  Win Rate:         {result.win_rate * 100:.1f}%")
+
+    if result.rebalance_events:
+        click.echo(f"\n  {click.style('Rebalancing', bold=True)}")
+        click.echo(f"  Events:           {len(result.rebalance_events)}")
+        click.echo(f"  Total Cost:       ${result.total_rebalance_cost:.2f}")
+
+    if result.portfolio_metrics:
+        pm = result.portfolio_metrics
+        click.echo(f"\n  {click.style('Portfolio Metrics', bold=True)}")
+        click.echo(f"  Beta:             {pm.beta:.3f}")
+        click.echo(f"  Alpha (ann.):     {_color_metric(pm.alpha, '{:.2%}')}")
+        click.echo(f"  Diversification:  {pm.diversification_ratio:.2f}")
+        click.echo(f"  Avg Correlation:  {pm.avg_correlation:.3f}")
+        if pm.tracking_error > 0:
+            click.echo(f"  Tracking Error:   {pm.tracking_error:.2%}")
+            click.echo(f"  Info Ratio:       {_color_metric(pm.information_ratio, '{:.2f}')}")
+
+    click.echo(f"\n  {click.style('Per-Asset Results', bold=True)}")
+    for symbol, r in result.results.items():
+        ret = r.total_return
+        color = "green" if ret >= 0 else "red"
+        click.echo(f"    {symbol}: {click.style(f'{ret*100:.2f}%', fg=color)} ({len(r.trades)} trades)")
+
+    click.echo(f"\n  Execution Time:   {result.execution_time_ms:.0f}ms")
+    click.echo()
+
+
 # ==================== Helpers ====================
 
 

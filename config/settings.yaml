@@ -20,8 +20,8 @@ data_providers:
     max_retries: 3
     retry_delay: 1
   alpha_vantage:
-    enabled: false
-    api_key: ""
+    enabled: true
+    api_key: "${ALPHA_VANTAGE_API_KEY}"
     default_timeframe: "1d"
     max_retries: 3
     retry_delay: 1

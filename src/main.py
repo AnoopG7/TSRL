@@ -32,6 +32,7 @@ from src.strategies.mean_reversion.bollinger_bands import (
     BollingerBandsStrategy,
     BollingerBandsBreakoutStrategy,
 )  # noqa
+from src.ml.strategies.ml_strategies import MLRandomForestStrategy, MLGradientBoostingStrategy  # noqa
 
 from src.application.services.backtest_service import BacktestService
 from src.application.services.data_service import DataService
@@ -42,6 +43,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    StrategyRegistry.auto_discover()
     yield
 
 
@@ -130,6 +132,22 @@ class MLTrainRequest(BaseModel):
     end_date: str
     timeframe: str = "1d"
     initial_capital: float = 100000.0
+    parameters: Optional[dict] = None
+
+
+class PortfolioBacktestRequest(BaseModel):
+    strategy_name: str
+    symbols: List[str]
+    weights: Optional[Dict[str, float]] = None
+    start_date: str
+    end_date: str
+    timeframe: str = "1d"
+    initial_capital: float = 100000.0
+    commission: float = 0.001
+    slippage: float = 0.0005
+    rebalance_frequency: str = "none"
+    rebalance_threshold: Optional[float] = None
+    benchmark_symbol: Optional[str] = None
     parameters: Optional[dict] = None
 
 
@@ -259,6 +277,88 @@ async def compare_strategies(request: CompareRequest):
         return {"status": "success", **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.post("/api/v1/backtests/portfolio")
+async def run_portfolio_backtest(request: PortfolioBacktestRequest):
+    """Run portfolio backtest with multiple symbols and optional rebalancing."""
+    import math
+
+    def clean_nan(value):
+        """Replace NaN/Inf values with 0 for JSON serialization."""
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return 0.0
+            return value
+        elif isinstance(value, dict):
+            return {k: clean_nan(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [clean_nan(v) for v in value]
+        return value
+
+    try:
+        service = BacktestService()
+        result = service.run_portfolio_backtest(
+            strategy_name=request.strategy_name,
+            symbols=request.symbols,
+            weights=request.weights,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            timeframe=request.timeframe,
+            initial_capital=request.initial_capital,
+            commission=request.commission,
+            slippage=request.slippage,
+            rebalance_frequency=request.rebalance_frequency,
+            rebalance_threshold=request.rebalance_threshold,
+            benchmark_symbol=request.benchmark_symbol,
+            parameters=request.parameters,
+        )
+
+        # Build equity curve response (limit to 500 points)
+        equity_curve = []
+        if not result.combined_equity.empty:
+            for idx, row in result.combined_equity.iterrows():
+                equity_curve.append({
+                    "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                    "total": round(row.get("total", 0), 2),
+                })
+            equity_curve = equity_curve[:500]
+
+        response = {
+            "status": "success",
+            "symbols": result.symbols,
+            "weights": result.weights,
+            "results": {
+                "total_return": result.total_return,
+                "total_trades": result.total_trades,
+                "sharpe_ratio": result.sharpe_ratio,
+                "max_drawdown": result.max_drawdown,
+                "win_rate": result.win_rate,
+                "execution_time_ms": result.execution_time_ms,
+            },
+            "rebalancing": {
+                "events": [e.to_dict() for e in result.rebalance_events[:20]],
+                "total_events": len(result.rebalance_events),
+                "total_cost": result.total_rebalance_cost,
+            },
+            "portfolio_metrics": result.portfolio_metrics.to_dict() if result.portfolio_metrics else None,
+            "equity_curve": equity_curve,
+            "per_asset_results": {
+                symbol: {
+                    "total_return": r.total_return,
+                    "trades": len(r.trades),
+                    "sharpe": r.metrics.sharpe_ratio if r.metrics else 0,
+                }
+                for symbol, r in result.results.items()
+            },
+        }
+
+        # Clean NaN values from response
+        return clean_nan(response)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ==================== Optimization Endpoints ====================

@@ -9,6 +9,7 @@ from src.engine.backtest.portfolio_engine import (
     PortfolioConfig,
     PortfolioResult,
     PortfolioMetricsMixin,
+    RebalanceFrequency,
 )
 from src.engine.backtest.engine import BacktestResult
 from src.strategies.base import BaseStrategy
@@ -101,7 +102,7 @@ class TestPortfolioConfig:
         assert config.max_positions == 5
         assert config.commission == 0.001
         assert config.slippage == 0.0005
-        assert config.rebalance_frequency == "daily"
+        assert config.rebalance_frequency == RebalanceFrequency.NONE
 
     def test_custom_config(self):
         config = PortfolioConfig(

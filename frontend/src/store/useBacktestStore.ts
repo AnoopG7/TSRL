@@ -13,7 +13,7 @@ interface BacktestState {
   strategies: Strategy[];
   loading: boolean;
   error: string | null;
-  activeTab: 'backtest' | 'compare';
+  activeTab: 'backtest' | 'compare' | 'portfolio';
 
   // Chart data
   equityCurve: EquityCurvePoint[];
@@ -31,7 +31,7 @@ interface BacktestState {
   setStrategies: (strategies: Strategy[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  setActiveTab: (tab: 'backtest' | 'compare') => void;
+  setActiveTab: (tab: 'backtest' | 'compare' | 'portfolio') => void;
   setEquityCurve: (data: EquityCurvePoint[]) => void;
   setDrawdownSeries: (data: DrawdownPoint[]) => void;
   setMonthlyReturns: (data: MonthlyReturn[]) => void;

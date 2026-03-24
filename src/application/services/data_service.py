@@ -22,7 +22,7 @@ class DataService:
         start_date: datetime,
         end_date: datetime,
         timeframe: str = "1d",
-        source: str = "yahoo",
+        source: str = "alpha_vantage",
     ) -> tuple[pd.DataFrame, str, dict]:
         """
         Fetch market data. Returns (dataframe, data_source_label, quality_metadata).
@@ -58,8 +58,11 @@ class DataService:
         except Exception as e:
             warning_msg = f"Data fetch failed for {symbol}: {type(e).__name__}: {e}. Using simulated data."
             logger.warning(warning_msg)
-            n_days = (end_date - start_date).days
-            df = generate_sample_ohlcv(symbol=symbol, n_days=max(n_days, 30))
+            df = generate_sample_ohlcv(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
             return df, "simulated", {
                 "is_simulated": True,
                 "warning_message": warning_msg,

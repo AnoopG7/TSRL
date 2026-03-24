@@ -293,3 +293,82 @@ class BacktestService:
         except Exception as e:
             logger.error(f"Database connection failed: {e}")
             return None
+
+    def run_portfolio_backtest(
+        self,
+        strategy_name: str,
+        symbols: list[str],
+        start_date: str,
+        end_date: str,
+        weights: Optional[dict[str, float]] = None,
+        timeframe: str = "1d",
+        initial_capital: float = 100000.0,
+        commission: float = 0.001,
+        slippage: float = 0.0005,
+        rebalance_frequency: str = "none",
+        rebalance_threshold: Optional[float] = None,
+        benchmark_symbol: Optional[str] = None,
+        parameters: Optional[dict] = None,
+    ):
+        """
+        Run portfolio backtest with multiple symbols.
+
+        Args:
+            strategy_name: Name of strategy to use
+            symbols: List of symbols to include in portfolio
+            start_date: Start date (ISO format)
+            end_date: End date (ISO format)
+            weights: Optional allocation weights (defaults to equal weight)
+            timeframe: Data timeframe
+            initial_capital: Starting capital
+            commission: Commission rate
+            slippage: Slippage rate
+            rebalance_frequency: none, monthly, quarterly, yearly
+            rebalance_threshold: Optional drift threshold for rebalancing
+            benchmark_symbol: Optional benchmark for beta/alpha calculation
+            parameters: Optional strategy parameters
+
+        Returns:
+            PortfolioResult with detailed metrics
+        """
+        from src.engine.backtest.portfolio_engine import (
+            EnhancedPortfolioBacktestEngine,
+            PortfolioConfig,
+            RebalanceFrequency,
+        )
+
+        # Create strategy
+        strategy = StrategyRegistry.create(strategy_name, **(parameters or {}))
+        if strategy is None:
+            raise ValueError(f"Strategy '{strategy_name}' not found")
+
+        # Fetch data for all symbols
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+
+        symbols_data = {}
+        for symbol in symbols:
+            df, _, _ = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
+            symbols_data[symbol] = df
+
+        # Fetch benchmark if specified
+        benchmark_data = None
+        if benchmark_symbol:
+            benchmark_df, _, _ = self.data_service.fetch_data(
+                benchmark_symbol, start_dt, end_dt, timeframe
+            )
+            benchmark_data = benchmark_df
+
+        # Configure and run
+        config = PortfolioConfig(
+            initial_capital=initial_capital,
+            commission=commission,
+            slippage=slippage,
+            weights=weights,
+            rebalance_frequency=RebalanceFrequency(rebalance_frequency),
+            rebalance_threshold=rebalance_threshold,
+            benchmark_symbol=benchmark_symbol,
+        )
+
+        engine = EnhancedPortfolioBacktestEngine(config)
+        return engine.run(strategy, symbols_data, benchmark_data, config)
