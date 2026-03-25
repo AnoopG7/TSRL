@@ -305,9 +305,13 @@ def fetch_data(symbol, start_date, end_date, timeframe):
     default="none",
     help="Rebalancing frequency",
 )
-@click.option("--threshold", default=None, type=float, help="Rebalance threshold (e.g., 0.05 for 5%)")
+@click.option(
+    "--threshold", default=None, type=float, help="Rebalance threshold (e.g., 0.05 for 5%)"
+)
 @click.option("--benchmark", default=None, help="Benchmark symbol for beta/alpha (e.g., SPY)")
-def portfolio(strategy, symbols, weights, start_date, end_date, capital, rebalance, threshold, benchmark):
+def portfolio(
+    strategy, symbols, weights, start_date, end_date, capital, rebalance, threshold, benchmark
+):
     """Run portfolio backtest with multiple symbols."""
     click.echo(f"\n{click.style('TSRL Portfolio Backtest', fg='cyan', bold=True)}")
     click.echo(f"Strategy: {click.style(strategy, fg='yellow')}")
@@ -320,12 +324,14 @@ def portfolio(strategy, symbols, weights, start_date, end_date, capital, rebalan
     if weights:
         weight_list = [float(w.strip()) for w in weights.split(",")]
         if len(weight_list) != len(symbol_list):
-            click.echo(click.style("Error: Number of weights must match number of symbols", fg="red"))
+            click.echo(
+                click.style("Error: Number of weights must match number of symbols", fg="red")
+            )
             return
         weight_dict = dict(zip(symbol_list, weight_list))
         click.echo(f"Weights:  {weight_dict}")
     else:
-        click.echo(f"Weights:  Equal ({1/len(symbol_list):.2%} each)")
+        click.echo(f"Weights:  Equal ({1 / len(symbol_list):.2%} each)")
 
     click.echo(f"Period:   {start_date} -> {end_date}")
     click.echo(f"Capital:  ${capital:,.0f}")
@@ -383,7 +389,9 @@ def portfolio(strategy, symbols, weights, start_date, end_date, capital, rebalan
     click.echo(f"{'=' * 60}")
 
     ret_color = "green" if result.total_return >= 0 else "red"
-    click.echo(f"  Total Return:     {click.style(f'{result.total_return * 100:.2f}%', fg=ret_color)}")
+    click.echo(
+        f"  Total Return:     {click.style(f'{result.total_return * 100:.2f}%', fg=ret_color)}"
+    )
     click.echo(f"  Sharpe Ratio:     {_color_metric(result.sharpe_ratio, '{:.2f}')}")
     click.echo(f"  Max Drawdown:     {click.style(f'{result.max_drawdown * 100:.2f}%', fg='red')}")
     click.echo(f"  Total Trades:     {result.total_trades}")
@@ -409,7 +417,9 @@ def portfolio(strategy, symbols, weights, start_date, end_date, capital, rebalan
     for symbol, r in result.results.items():
         ret = r.total_return
         color = "green" if ret >= 0 else "red"
-        click.echo(f"    {symbol}: {click.style(f'{ret*100:.2f}%', fg=color)} ({len(r.trades)} trades)")
+        click.echo(
+            f"    {symbol}: {click.style(f'{ret * 100:.2f}%', fg=color)} ({len(r.trades)} trades)"
+        )
 
     click.echo(f"\n  Execution Time:   {result.execution_time_ms:.0f}ms")
     click.echo()

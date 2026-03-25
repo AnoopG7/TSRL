@@ -1,91 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Briefcase, AlertCircle, TrendingUp, TrendingDown, Activity, PieChart, RefreshCw } from 'lucide-react';
-import type { Strategy } from '../lib/schemas';
+import { toast } from 'sonner';
+
 import { EquityCurveChart } from '../components/charts';
+import { ParameterEditor } from '../components/forms/ParameterEditor';
+import { MetricCard } from '../components/ui/MetricCard';
+import { useStrategies, useRunPortfolioBacktest } from '../hooks/apiHooks';
+import { DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL } from '../lib/constants';
+import type { PortfolioConfig, PortfolioResult } from '../lib/schemas';
 
-interface PortfolioConfig {
-  strategy_name: string;
-  symbols: string;
-  weights: string;
-  start_date: string;
-  end_date: string;
-  initial_capital: number;
-  rebalance_frequency: string;
-  rebalance_threshold: string;
-  benchmark_symbol: string;
-}
-
-interface PortfolioResult {
-  symbols: string[];
-  weights: Record<string, number>;
-  results: {
-    total_return: number;
-    total_trades: number;
-    sharpe_ratio: number;
-    max_drawdown: number;
-    win_rate: number;
-    execution_time_ms: number;
-  };
-  rebalancing: {
-    total_events: number;
-    total_cost: number;
-  };
-  portfolio_metrics: {
-    beta: number;
-    alpha: number;
-    diversification_ratio: number;
-    avg_correlation: number;
-    tracking_error: number;
-    information_ratio: number;
-  } | null;
-  equity_curve: Array<{ date: string; total: number }>;
-  per_asset_results: Record<string, { total_return: number; trades: number; sharpe: number }>;
-}
-
-interface PortfolioPageProps {
-  strategies: Strategy[];
-  onRunPortfolio: (config: PortfolioConfig) => Promise<PortfolioResult | null>;
-}
-
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({
-  strategies,
-  onRunPortfolio,
-}) => {
+export const PortfolioPage: React.FC = () => {
+  const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
+  const runPortfolioMutation = useRunPortfolioBacktest();
   const [result, setResult] = useState<PortfolioResult | null>(null);
-  const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PortfolioConfig>({
     defaultValues: {
-      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || '',
+      strategy_name: '',
       symbols: 'AAPL,GOOGL,MSFT',
       weights: '',
-      start_date: '2023-01-01',
-      end_date: '2024-01-01',
-      initial_capital: 100000,
+      start_date: DEFAULT_START_DATE,
+      end_date: DEFAULT_END_DATE,
+      initial_capital: DEFAULT_INITIAL_CAPITAL,
       rebalance_frequency: 'none',
       rebalance_threshold: '',
       benchmark_symbol: '',
+      parameters: {},
     },
   });
 
+  useEffect(() => {
+    if (strategies.length > 0) {
+      const defaultStrategy = strategies[0]?.registry_key || strategies[0]?.name || '';
+      setValue('strategy_name', defaultStrategy);
+    }
+  }, [strategies, setValue]);
+
   const onSubmit = async (data: PortfolioConfig) => {
-    setLoading(true);
     setError(null);
     try {
-      const res = await onRunPortfolio(data);
+      const res = await runPortfolioMutation.mutateAsync(data);
       setResult(res);
-    } catch (err: unknown) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+      toast.success('Portfolio backtest completed', {
+        description: `${res.symbols.length} assets, ${(res.results.total_return * 100).toFixed(2)}% return`,
+      });
+    } catch (err: Error | unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      toast.error('Portfolio backtest failed', { description: message });
     }
   };
+
+  const loading = runPortfolioMutation.isPending;
 
   const equityCurveData = result?.equity_curve?.map(d => ({
     date: d.date,
@@ -159,9 +134,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                 <label className="form-label">Benchmark (optional)</label>
                 <input type="text" className="form-input" {...register('benchmark_symbol')} placeholder="SPY" />
               </div>
+              
+              <ParameterEditor 
+                strategy={strategies.find(s => (s.registry_key || s.name) === watch('strategy_name'))} 
+                onChange={(p) => setValue('parameters', p)} 
+              />
             </div>
             <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
+              <button type="submit" className="btn btn-primary" disabled={loading || isLoadingStrategies}>
                 {loading ? 'Running...' : 'Run Portfolio Backtest'}
               </button>
             </div>
@@ -296,30 +276,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           )}
         </>
       )}
-    </div>
-  );
-};
-
-interface MetricCardProps {
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
-  positive?: boolean;
-  negative?: boolean;
-}
-
-const MetricCard: React.FC<MetricCardProps> = ({ label, value, icon, positive, negative }) => {
-  let valueClass = '';
-  if (positive) valueClass = 'metric-positive';
-  if (negative) valueClass = 'metric-negative';
-
-  return (
-    <div className="metric-card">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
-        {icon}
-        <span style={{ fontSize: '0.875rem' }}>{label}</span>
-      </div>
-      <div className={`metric-value ${valueClass}`}>{value}</div>
     </div>
   );
 };

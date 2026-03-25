@@ -3,29 +3,25 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, BarChart3 } from 'lucide-react';
 import { z } from 'zod';
-import type { Strategy } from '../lib/schemas';
+import { toast } from 'sonner';
+
 import { useBacktestStore } from '../store';
 import { EquityCurveChart } from '../components/charts';
-
-interface ComparisonPageProps {
-  strategies: Strategy[];
-  onCompare: (strategyNames: string[], config: {
-    symbol: string;
-    start_date: string;
-    end_date: string;
-    initial_capital: number;
-  }) => Promise<void>;
-}
+import { useStrategies, useCompareStrategies } from '../hooks/apiHooks';
+import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
 const ComparisonFormSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required').max(10),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
   initial_capital: z.number().min(1000).max(100000000),
+  source: z.enum(['yahoo', 'alpha_vantage']).default('yahoo'),
 });
 
-export const ComparisonPage: React.FC<ComparisonPageProps> = ({ strategies, onCompare }) => {
-  const { comparisonResult, comparisonLoading, error } = useBacktestStore();
+export const ComparisonPage: React.FC = () => {
+  const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
+  const compareMutation = useCompareStrategies();
+  const { comparisonResult, setComparisonResult, error, setError } = useBacktestStore();
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
 
   const {
@@ -35,10 +31,11 @@ export const ComparisonPage: React.FC<ComparisonPageProps> = ({ strategies, onCo
   } = useForm({
     resolver: zodResolver(ComparisonFormSchema),
     defaultValues: {
-      symbol: 'AAPL',
-      start_date: '2023-01-01',
-      end_date: '2024-01-01',
-      initial_capital: 100000,
+      symbol: DEFAULT_SYMBOL,
+      start_date: DEFAULT_START_DATE,
+      end_date: DEFAULT_END_DATE,
+      initial_capital: DEFAULT_INITIAL_CAPITAL,
+      source: DEFAULT_DATA_SOURCE,
     },
   });
 
@@ -48,10 +45,23 @@ export const ComparisonPage: React.FC<ComparisonPageProps> = ({ strategies, onCo
     );
   };
 
-  const onSubmit = async (data: { symbol: string; start_date: string; end_date: string; initial_capital: number }) => {
+  const onSubmit = async (data: { symbol: string; start_date: string; end_date: string; initial_capital: number; source: 'yahoo' | 'alpha_vantage' }) => {
     if (selectedStrategies.length < 2) return;
-    await onCompare(selectedStrategies, data);
+    setError(null);
+    try {
+      const result = await compareMutation.mutateAsync({ strategyNames: selectedStrategies, config: data });
+      setComparisonResult(result);
+      toast.success('Comparison completed', {
+        description: `Compared ${selectedStrategies.length} strategies`,
+      });
+    } catch (err: Error | unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      toast.error('Comparison failed', { description: message });
+    }
   };
+
+  const comparisonLoading = compareMutation.isPending;
 
   const strategyResults = comparisonResult ? Object.values(comparisonResult.strategies) : [];
   const equityCurveData = comparisonResult
@@ -122,7 +132,7 @@ export const ComparisonPage: React.FC<ComparisonPageProps> = ({ strategies, onCo
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={comparisonLoading || selectedStrategies.length < 2}
+              disabled={comparisonLoading || isLoadingStrategies || selectedStrategies.length < 2}
             >
               {comparisonLoading ? 'Comparing...' : `Compare ${selectedStrategies.length} Strategies`}
             </button>

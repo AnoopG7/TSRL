@@ -1,42 +1,69 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Target, AlertCircle, DollarSign, TrendingUp, TrendingDown, Activity, BarChart3, LineChart } from 'lucide-react';
+import { toast } from 'sonner';
 import { BacktestConfigSchema } from '../lib/schemas';
-import type { BacktestConfig, Strategy } from '../lib/schemas';
+import type { BacktestConfig } from '../lib/schemas';
 import { useBacktestStore } from '../store';
 import { EquityCurveChart, DrawdownChart, MonthlyReturnsHeatmap } from '../components/charts';
+import { ParameterEditor } from '../components/forms/ParameterEditor';
+import { MetricCard } from '../components/ui/MetricCard';
+import { useStrategies, useRunBacktest } from '../hooks/apiHooks';
+import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
-interface BacktestPageProps {
-  strategies: Strategy[];
-  onRunBacktest: (config: BacktestConfig) => Promise<void>;
-}
-
-export const BacktestPage: React.FC<BacktestPageProps> = ({
-  strategies,
-  onRunBacktest,
-}) => {
-  const { result, trades, loading, error, equityCurve, drawdownSeries, monthlyReturns } = useBacktestStore();
+export const BacktestPage: React.FC = () => {
+  const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
+  const runBacktestMutation = useRunBacktest();
+  const { result, trades, loading, error, equityCurve, drawdownSeries, monthlyReturns, setResult, setError, setTrades, setEquityCurve, setDrawdownSeries, setMonthlyReturns } = useBacktestStore();
   const [chartTab, setChartTab] = useState<'equity' | 'drawdown' | 'monthly'>('equity');
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<BacktestConfig>({
     resolver: zodResolver(BacktestConfigSchema),
     defaultValues: {
-      strategy_name: strategies[0]?.registry_key || strategies[0]?.name || '',
-      symbol: 'AAPL',
-      start_date: '2023-01-01',
-      end_date: '2024-01-01',
-      initial_capital: 100000,
+      strategy_name: '',
+      symbol: DEFAULT_SYMBOL,
+      start_date: DEFAULT_START_DATE,
+      end_date: DEFAULT_END_DATE,
+      initial_capital: DEFAULT_INITIAL_CAPITAL,
+      parameters: {},
+      source: DEFAULT_DATA_SOURCE,
     },
   });
 
+  useEffect(() => {
+    if (strategies.length > 0) {
+      const defaultStrategy = strategies[0]?.registry_key || strategies[0]?.name || '';
+      setValue('strategy_name', defaultStrategy);
+    }
+  }, [strategies, setValue]);
+
   const onSubmit = async (data: BacktestConfig) => {
-    await onRunBacktest(data);
+    setError(null);
+    try {
+      const response = await runBacktestMutation.mutateAsync(data);
+      setResult(response.results);
+      setTrades(response.trades || []);
+      setEquityCurve(response.equity_curve || []);
+      setDrawdownSeries(response.drawdown_series || []);
+      setMonthlyReturns(response.monthly_returns || []);
+      toast.success('Backtest completed', {
+        description: `${response.results?.total_trades || 0} trades, ${((response.results?.total_return || 0) * 100).toFixed(2)}% return`,
+      });
+    } catch (err: Error | unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      toast.error('Backtest failed', { description: message });
+    }
   };
+
+  const isLoading = runBacktestMutation.isPending || loading;
 
   const hasChartData = equityCurve.length > 0 || drawdownSeries.length > 0 || monthlyReturns.length > 0;
 
@@ -92,10 +119,15 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
                 <input type="number" className="form-input" {...register('initial_capital', { valueAsNumber: true })} />
                 {errors.initial_capital && <span className="form-error">{errors.initial_capital.message}</span>}
               </div>
+
+              <ParameterEditor 
+                strategy={strategies.find(s => (s.registry_key || s.name) === watch('strategy_name'))} 
+                onChange={(p) => setValue('parameters', p)} 
+              />
             </div>
             <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Running...' : 'Run Backtest'}
+              <button type="submit" className="btn btn-primary" disabled={isLoading || isLoadingStrategies}>
+                {isLoading ? 'Running...' : 'Run Backtest'}
               </button>
             </div>
           </form>
@@ -221,30 +253,6 @@ export const BacktestPage: React.FC<BacktestPageProps> = ({
           </section>
         </>
       )}
-    </div>
-  );
-};
-
-interface MetricCardProps {
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
-  positive?: boolean;
-  negative?: boolean;
-}
-
-const MetricCard: React.FC<MetricCardProps> = ({ label, value, icon, positive, negative }) => {
-  let valueClass = '';
-  if (positive) valueClass = 'metric-positive';
-  if (negative) valueClass = 'metric-negative';
-
-  return (
-    <div className="metric-card">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
-        {icon}
-        <span style={{ fontSize: '0.875rem' }}>{label}</span>
-      </div>
-      <div className={`metric-value ${valueClass}`}>{value}</div>
     </div>
   );
 };

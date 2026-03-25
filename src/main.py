@@ -318,10 +318,12 @@ async def run_portfolio_backtest(request: PortfolioBacktestRequest):
         equity_curve = []
         if not result.combined_equity.empty:
             for idx, row in result.combined_equity.iterrows():
-                equity_curve.append({
-                    "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
-                    "total": round(row.get("total", 0), 2),
-                })
+                equity_curve.append(
+                    {
+                        "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                        "total": round(row.get("total", 0), 2),
+                    }
+                )
             equity_curve = equity_curve[:500]
 
         response = {
@@ -341,7 +343,9 @@ async def run_portfolio_backtest(request: PortfolioBacktestRequest):
                 "total_events": len(result.rebalance_events),
                 "total_cost": result.total_rebalance_cost,
             },
-            "portfolio_metrics": result.portfolio_metrics.to_dict() if result.portfolio_metrics else None,
+            "portfolio_metrics": result.portfolio_metrics.to_dict()
+            if result.portfolio_metrics
+            else None,
             "equity_curve": equity_curve,
             "per_asset_results": {
                 symbol: {
@@ -373,7 +377,9 @@ def _run_optimization(request: OptimizationRequest, optimizer_cls: type) -> dict
     data_service = DataService()
     start_dt = datetime.fromisoformat(request.start_date)
     end_dt = datetime.fromisoformat(request.end_date)
-    df, data_source, _ = data_service.fetch_data(request.symbol, start_dt, end_dt, request.timeframe)
+    df, data_source, _ = data_service.fetch_data(
+        request.symbol, start_dt, end_dt, request.timeframe
+    )
 
     opt_config = OptimizationConfig(metric=request.metric)
     optimizer = optimizer_cls(config=opt_config)

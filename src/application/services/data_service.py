@@ -21,7 +21,7 @@ class DataService:
         start_date: datetime,
         end_date: datetime,
         timeframe: str = "1d",
-        source: str = "alpha_vantage",
+        source: str = "yahoo",
     ) -> tuple[pd.DataFrame, str, dict]:
         """
         Fetch market data. Returns (dataframe, data_source_label, quality_metadata).
@@ -48,11 +48,14 @@ class DataService:
                 timeframe=timeframe,
             )
             logger.info(f"Fetched {len(df)} rows of live data for {symbol}")
-            return df, "live", {
-                "is_simulated": False,
-                "warning_message": None,
-                "original_exception": None,
-            }
+            return (
+                df, "live",
+                {
+                    "is_simulated": False,
+                    "warning_message": None,
+                    "original_exception": None,
+                },
+            )
 
         except Exception as e:
             error_msg = f"Data fetch failed for {symbol}: {type(e).__name__}: {e}"

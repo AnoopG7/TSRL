@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { DataSourceSelector } from '../forms/DataSourceSelector';
 
 interface HeaderProps {
   title: string;
@@ -21,7 +22,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
               <p className="header-subtitle">{subtitle}</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+            <DataSourceSelector />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </header>
