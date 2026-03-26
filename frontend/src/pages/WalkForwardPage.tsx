@@ -5,6 +5,9 @@ import { z } from 'zod';
 import { AlertCircle, Table, GitCompare } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStrategies, useRunWalkForward } from '../hooks/apiHooks';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
+import { PageFooter } from '../components/ui/PageFooter';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL } from '../lib/constants';
 import { snakeToTitleCase, extractParamValue, parseCommaSeparated } from '../lib/utils';
 import type { WalkForwardResult } from '../lib/schemas';
@@ -132,12 +135,7 @@ export const WalkForwardPage: React.FC = () => {
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 'var(--spacing-md)',
-              marginBottom: 'var(--spacing-lg)'
-            }}>
+            <div className="form-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
               
               <div className="form-group">
                 <label className="form-label">Strategy</label>
@@ -229,6 +227,16 @@ export const WalkForwardPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Loading Skeletons */}
+      {isLoading && !result && (
+        <>
+          <SkeletonMetricGrid count={4} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonCard lines={8} />
+          </div>
+        </>
+      )}
+
       {/* Results Display */}
       {result && (
         <>
@@ -316,6 +324,23 @@ export const WalkForwardPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Page Footer */}
+      <PageFooter
+        title="Walk-Forward Analysis"
+        description="Test strategy robustness by repeatedly optimizing on historical data and validating on future data. This rolling window approach helps detect overfitting and validates out-of-sample performance."
+        parameters={[
+          { name: 'Train Window', description: 'Days to use for parameter optimization (default: 252 = 1 year)' },
+          { name: 'Test Window', description: 'Days to validate optimized parameters (default: 63 = 1 quarter)' },
+          { name: 'Parameter Grid', description: 'Search space for optimization during each train phase' },
+        ]}
+        tips={[
+          'Stability score > 0.5 indicates parameters are robust across time',
+          'Large gaps between train and test Sharpe suggest overfitting',
+          'Use longer test windows for more reliable out-of-sample estimates',
+          'If test returns are consistently negative, the strategy may not be viable',
+        ]}
+      />
     </div>
   );
 };

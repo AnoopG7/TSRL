@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 
 import { useBacktestStore } from '../store';
 import { EquityCurveChart } from '../components/charts';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { SkeletonChart } from '../components/ui/SkeletonChart';
+import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useCompareStrategies } from '../hooks/apiHooks';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
@@ -105,12 +108,7 @@ export const ComparisonPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 'var(--spacing-md)',
-              marginBottom: 'var(--spacing-lg)',
-            }}>
+            <div className="form-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
               <div className="form-group">
                 <label className="form-label">Symbol</label>
                 <input type="text" className="form-input" {...register('symbol')} placeholder="AAPL" />
@@ -146,6 +144,16 @@ export const ComparisonPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Loading Skeletons */}
+      {comparisonLoading && !comparisonResult && (
+        <>
+          <SkeletonChart height={300} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonCard lines={6} />
+          </div>
+        </>
+      )}
 
       {/* Chart with overlaid equity curves */}
       {comparisonResult && equityCurveData && (
@@ -213,6 +221,23 @@ export const ComparisonPage: React.FC = () => {
           </div>
         </section>
       )}
+
+      {/* Page Footer */}
+      <PageFooter
+        title="Strategy Comparison"
+        description="Compare multiple trading strategies side-by-side on identical market data. Visualize equity curves together and compare key performance metrics to select the best approach."
+        parameters={[
+          { name: 'Strategies', description: 'Select 2 or more strategies to compare' },
+          { name: 'Symbol', description: 'Stock ticker to test all strategies against' },
+          { name: 'Date Range', description: 'Historical period for the comparison' },
+        ]}
+        tips={[
+          'Compare strategies on the same data for fair evaluation',
+          'Look beyond total return - consider Sharpe ratio for risk-adjusted performance',
+          'Higher win rate does not always mean better strategy (position sizing matters)',
+          'Profit factor > 2 indicates strong risk/reward characteristics',
+        ]}
+      />
     </div>
   );
 };

@@ -9,6 +9,10 @@ import { useBacktestStore } from '../store';
 import { EquityCurveChart, DrawdownChart, MonthlyReturnsHeatmap } from '../components/charts';
 import { ParameterEditor } from '../components/forms/ParameterEditor';
 import { MetricCard } from '../components/ui/MetricCard';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
+import { SkeletonChart } from '../components/ui/SkeletonChart';
+import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useRunBacktest } from '../hooks/apiHooks';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
@@ -80,12 +84,7 @@ export const BacktestPage: React.FC = () => {
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 'var(--spacing-md)',
-              marginBottom: 'var(--spacing-lg)'
-            }}>
+            <div className="form-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
               <div className="form-group">
                 <label className="form-label">Strategy</label>
                 <select className="form-input" {...register('strategy_name')}>
@@ -139,6 +138,19 @@ export const BacktestPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Loading Skeletons */}
+      {isLoading && !result && (
+        <>
+          <SkeletonMetricGrid count={8} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonChart height={300} />
+          </div>
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonCard lines={5} />
+          </div>
+        </>
+      )}
 
       {result && (
         <>
@@ -253,6 +265,24 @@ export const BacktestPage: React.FC = () => {
           </section>
         </>
       )}
+
+      {/* Page Footer */}
+      <PageFooter
+        title="Backtesting"
+        description="Run historical simulations of trading strategies to evaluate their performance on past market data. Backtesting helps validate strategy logic before deploying capital."
+        parameters={[
+          { name: 'Strategy', description: 'The trading algorithm to test (EMA Crossover, RSI Mean Reversion, etc.)' },
+          { name: 'Symbol', description: 'Stock ticker to backtest against (e.g., AAPL, MSFT)' },
+          { name: 'Initial Capital', description: 'Starting portfolio value for the simulation' },
+          { name: 'Date Range', description: 'Historical period for the backtest' },
+        ]}
+        tips={[
+          'Use at least 2 years of data for statistically meaningful results',
+          'Compare multiple strategies on the same data for fair evaluation',
+          'Watch for overfitting - high in-sample returns may not persist out-of-sample',
+          'Consider transaction costs and slippage in your analysis',
+        ]}
+      />
     </div>
   );
 };

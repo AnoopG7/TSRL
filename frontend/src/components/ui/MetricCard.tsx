@@ -15,9 +15,17 @@ export const MetricCard: React.FC<MetricCardProps> = ({ label, value, icon, posi
 
   return (
     <div className="metric-card">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
-        {icon}
-        <span style={{ fontSize: '0.875rem' }}>{label}</span>
+      {icon && (
+        <div className="metric-icon">
+          {icon}
+        </div>
+      )}
+      <div style={{
+        fontSize: '0.875rem',
+        color: 'var(--color-text-secondary)',
+        marginBottom: '0.25rem'
+      }}>
+        {label}
       </div>
       <div className={`metric-value ${valueClass}`}>{value}</div>
     </div>

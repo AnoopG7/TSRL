@@ -6,6 +6,9 @@ import { toast } from 'sonner';
 import { EquityCurveChart } from '../components/charts';
 import { ParameterEditor } from '../components/forms/ParameterEditor';
 import { MetricCard } from '../components/ui/MetricCard';
+import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
+import { SkeletonChart } from '../components/ui/SkeletonChart';
+import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useRunPortfolioBacktest } from '../hooks/apiHooks';
 import { DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL } from '../lib/constants';
 import type { PortfolioConfig, PortfolioResult } from '../lib/schemas';
@@ -80,12 +83,7 @@ export const PortfolioPage: React.FC = () => {
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 'var(--spacing-md)',
-              marginBottom: 'var(--spacing-lg)'
-            }}>
+            <div className="form-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
               <div className="form-group">
                 <label className="form-label">Strategy</label>
                 <select className="form-input" {...register('strategy_name')}>
@@ -154,6 +152,16 @@ export const PortfolioPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Loading Skeletons */}
+      {loading && !result && (
+        <>
+          <SkeletonMetricGrid count={6} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonChart height={300} />
+          </div>
+        </>
+      )}
 
       {result && (
         <>
@@ -276,6 +284,25 @@ export const PortfolioPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Page Footer */}
+      <PageFooter
+        title="Portfolio Backtesting"
+        description="Test trading strategies across multiple assets with customizable allocation weights and automatic rebalancing. Evaluate portfolio-level metrics including diversification and correlation."
+        parameters={[
+          { name: 'Symbols', description: 'Comma-separated list of stock tickers to include in the portfolio' },
+          { name: 'Weights', description: 'Allocation weights per asset (leave empty for equal weighting)' },
+          { name: 'Rebalancing', description: 'Frequency to rebalance to target weights (none, monthly, quarterly, yearly)' },
+          { name: 'Drift Threshold', description: 'Trigger rebalance when allocation drifts by this percentage' },
+          { name: 'Benchmark', description: 'Optional benchmark symbol (e.g., SPY) for comparison metrics' },
+        ]}
+        tips={[
+          'Diversification ratio > 1 indicates effective risk reduction from diversification',
+          'Low average correlation between assets improves portfolio efficiency',
+          'Consider rebalancing costs - frequent rebalancing may erode returns',
+          'Alpha > 0 with benchmark indicates value-add beyond market exposure',
+        ]}
+      />
     </div>
   );
 };

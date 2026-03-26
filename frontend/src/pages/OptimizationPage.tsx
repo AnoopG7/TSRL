@@ -6,6 +6,10 @@ import { AlertCircle, Settings2, Table } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStrategies, useRunOptimization } from '../hooks/apiHooks';
 import { ParameterSensitivityChart } from '../components/charts';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
+import { SkeletonChart } from '../components/ui/SkeletonChart';
+import { PageFooter } from '../components/ui/PageFooter';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL } from '../lib/constants';
 import { snakeToTitleCase, extractParamValue, parseCommaSeparated } from '../lib/utils';
 import type { OptimizationResult } from '../lib/schemas';
@@ -147,12 +151,7 @@ export const OptimizationPage: React.FC = () => {
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 'var(--spacing-md)',
-              marginBottom: 'var(--spacing-lg)'
-            }}>
+            <div className="form-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
               
               {/* Basic Fields */}
               <div className="form-group">
@@ -258,6 +257,19 @@ export const OptimizationPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Loading Skeletons */}
+      {isLoading && !result && (
+        <>
+          <SkeletonMetricGrid count={4} />
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonChart height={300} />
+          </div>
+          <div style={{ marginTop: 'var(--spacing-lg)' }}>
+            <SkeletonCard lines={6} />
+          </div>
+        </>
+      )}
+
       {/* Results Display */}
       {result && (
         <>
@@ -340,6 +352,24 @@ export const OptimizationPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Page Footer */}
+      <PageFooter
+        title="Optimization"
+        description="Search through parameter combinations to find the optimal configuration for your trading strategy. Grid search tests all combinations while random and genetic methods sample intelligently."
+        parameters={[
+          { name: 'Optimization Method', description: 'Grid (exhaustive), Random (sampling), or Genetic (evolutionary) search' },
+          { name: 'Target Metric', description: 'The metric to maximize (Sharpe, Return, Win Rate, etc.)' },
+          { name: 'Parameter Grid', description: 'Comma-separated values to test for each parameter' },
+          { name: 'Iterations', description: 'Number of samples for random/genetic methods' },
+        ]}
+        tips={[
+          'Start with random search for large parameter spaces - grid search grows exponentially',
+          'Use at least 50 iterations for random search to get meaningful results',
+          'Cross-validate results with walk-forward analysis to avoid overfitting',
+          'Consider multiple metrics, not just returns - Sharpe ratio accounts for risk',
+        ]}
+      />
     </div>
   );
 };
