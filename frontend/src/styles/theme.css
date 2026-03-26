@@ -405,19 +405,111 @@ body {
 
 .chart-container {
   width: 100%;
-  min-height: 240px;
+  min-height: 280px;
+}
+
+/* Chart Tooltips */
+.chart-tooltip {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+  min-width: 160px;
+}
+
+.chart-tooltip-header {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.chart-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 2px 0;
+}
+
+.chart-tooltip-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.chart-tooltip-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.chart-tooltip-value.positive {
+  color: var(--color-success-500);
+}
+
+.chart-tooltip-value.negative {
+  color: var(--color-danger-500);
+}
+
+.chart-tooltip-badge {
+  background: var(--color-accent-500);
+  color: white;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.chart-tooltip-divider {
+  height: 1px;
+  background: var(--color-border-default);
+  margin: var(--spacing-sm) 0;
+}
+
+/* Chart Legend */
+.chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) 0;
+  margin-top: var(--spacing-sm);
+}
+
+.chart-legend-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chart-legend-scale {
+  display: flex;
+  align-items: center;
+}
+
+.chart-legend-gradient {
+  width: 120px;
+  height: 8px;
+  border-radius: 4px;
 }
 
 /* ==================== HEATMAP ==================== */
 
 .heatmap-wrapper {
   overflow-x: auto;
+  padding-bottom: var(--spacing-md);
 }
 
 .heatmap-grid {
   display: grid;
-  gap: 2px;
-  min-width: 600px;
+  gap: 3px;
+  min-width: 700px;
 }
 
 .heatmap-header {
@@ -427,7 +519,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   text-align: center;
-  padding: 6px 4px;
+  padding: 8px 4px;
 }
 
 .heatmap-year {
@@ -436,21 +528,56 @@ body {
   color: var(--color-text-primary);
   display: flex;
   align-items: center;
-  padding: 0 4px;
+  padding: 0 8px;
 }
 
 .heatmap-cell {
   font-size: 0.7rem;
   font-weight: 500;
   text-align: center;
-  padding: 8px 4px;
+  padding: 10px 4px;
   border-radius: 4px;
   transition: all var(--transition-fast);
+  cursor: default;
 }
 
 .heatmap-cell:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
   z-index: 1;
+  box-shadow: var(--shadow-md);
+}
+
+.heatmap-total {
+  border-left: 2px solid var(--color-border-default);
+}
+
+/* Heatmap Legend */
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) 0;
+  margin-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.heatmap-legend-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heatmap-legend-scale {
+  display: flex;
+  gap: 2px;
+}
+
+.heatmap-legend-item {
+  width: 20px;
+  height: 12px;
+  border-radius: 2px;
 }
 
 /* ==================== STRATEGY CHIPS ==================== */
