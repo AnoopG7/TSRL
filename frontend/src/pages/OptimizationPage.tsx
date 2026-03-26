@@ -98,7 +98,7 @@ export const OptimizationPage: React.FC = () => {
 
     try {
       // Parse the grid inputs into proper arrays
-      const parsedGrid: Record<string, any[]> = {};
+      const parsedGrid: Record<string, (number | boolean | string)[]> = {};
 
       Object.entries(paramGridInputs).forEach(([key, valueString]) => {
         const parts = parseCommaSeparated(valueString);
@@ -333,7 +333,7 @@ export const OptimizationPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.results.map((r: any, idx: number) => (
+                      {result.results.map((r: { params: Record<string, number | boolean | string>; score: number }, idx: number) => (
                         <tr key={idx}>
                           <td>#{idx + 1}</td>
                           <td style={{ fontSize: '0.875rem' }}>

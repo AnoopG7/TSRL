@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle, Table, GitCompare } from 'lucide-react';
+import { AlertCircle, Table, GitCompare, TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine
+} from 'recharts';
 import { useStrategies, useRunWalkForward } from '../hooks/apiHooks';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
@@ -23,6 +26,45 @@ const WalkForwardConfigSchema = z.object({
 });
 
 type WalkForwardConfig = z.infer<typeof WalkForwardConfigSchema>;
+
+// Stats card component
+const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon: React.ReactNode; positive?: boolean; negative?: boolean }> = ({
+  label, value, subtext, icon, positive, negative
+}) => (
+  <div className="chart-stat-card">
+    <div className={`chart-stat-icon ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{icon}</div>
+    <div className="chart-stat-content">
+      <span className="chart-stat-label">{label}</span>
+      <span className={`chart-stat-value ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{value}</span>
+      {subtext && <span className="chart-stat-subtext">{subtext}</span>}
+    </div>
+  </div>
+);
+
+// Custom tooltip for the bar chart
+const WindowTooltip: React.FC<{ active?: boolean; payload?: Array<{ payload: { window: number; return: number; trades: number; period: string } }> }> = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  return (
+    <div className="chart-tooltip">
+      <div className="chart-tooltip-header">Window #{data.window}</div>
+      <div className="chart-tooltip-row">
+        <span className="chart-tooltip-label">Period</span>
+        <span className="chart-tooltip-value">{data.period}</span>
+      </div>
+      <div className="chart-tooltip-row">
+        <span className="chart-tooltip-label">Return</span>
+        <span className={`chart-tooltip-value ${data.return >= 0 ? 'positive' : 'negative'}`}>
+          {(data.return * 100).toFixed(2)}%
+        </span>
+      </div>
+      <div className="chart-tooltip-row">
+        <span className="chart-tooltip-label">Trades</span>
+        <span className="chart-tooltip-value">{data.trades}</span>
+      </div>
+    </div>
+  );
+};
 
 export const WalkForwardPage: React.FC = () => {
   const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
@@ -89,7 +131,7 @@ export const WalkForwardPage: React.FC = () => {
     setResult(null);
 
     try {
-      const parsedGrid: Record<string, any[]> = {};
+      const parsedGrid: Record<string, (number | boolean | string)[]> = {};
 
       Object.entries(paramGridInputs).forEach(([key, valueString]) => {
         const parts = parseCommaSeparated(valueString);
@@ -240,45 +282,110 @@ export const WalkForwardPage: React.FC = () => {
       {/* Results Display */}
       {result && (
         <>
-          {/* Analysis Summary */}
+          {/* Analysis Summary with Stats Bar */}
           <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
             <div className="card-header">
               <h2 className="card-title">Analysis Summary</h2>
             </div>
             <div className="card-content">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-md)' }}>
-                
-                <div style={{ padding: 'var(--spacing-md)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Average Train Sharpe</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    {result.avg_train_sharpe?.toFixed(2) ?? 'N/A'}
-                  </div>
-                </div>
-                
-                <div style={{ padding: 'var(--spacing-md)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Average Test Sharpe</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    {result.avg_test_sharpe?.toFixed(2) ?? 'N/A'}
-                  </div>
-                </div>
-                
-                <div style={{ padding: 'var(--spacing-md)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Stability Score</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-accent-400)' }}>
-                    {result.stability_score?.toFixed(2) ?? 'N/A'}
-                  </div>
-                </div>
-                
-                <div style={{ padding: 'var(--spacing-md)', background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Total Test Return</div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: result.total_test_return >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                    {(result.total_test_return * 100).toFixed(2)}%
-                  </div>
-                </div>
-
+              <div className="chart-stats-bar">
+                <StatCard
+                  label="Avg Train Sharpe"
+                  value={result.avg_train_sharpe?.toFixed(2) ?? 'N/A'}
+                  icon={<TrendingUp size={16} />}
+                  positive={result.avg_train_sharpe > 0}
+                />
+                <StatCard
+                  label="Avg Test Sharpe"
+                  value={result.avg_test_sharpe?.toFixed(2) ?? 'N/A'}
+                  icon={<Activity size={16} />}
+                  positive={result.avg_test_sharpe > 0}
+                  negative={result.avg_test_sharpe < 0}
+                />
+                <StatCard
+                  label="Stability Score"
+                  value={result.stability_score?.toFixed(2) ?? 'N/A'}
+                  subtext={result.stability_score > 0.5 ? 'Robust' : 'Unstable'}
+                  icon={<Target size={16} />}
+                  positive={result.stability_score > 0.5}
+                  negative={result.stability_score < 0.3}
+                />
+                <StatCard
+                  label="Total Test Return"
+                  value={`${(result.total_test_return * 100).toFixed(2)}%`}
+                  icon={result.total_test_return >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  positive={result.total_test_return >= 0}
+                  negative={result.total_test_return < 0}
+                />
               </div>
             </div>
           </section>
+
+          {/* Rolling Windows Chart */}
+          {result.windows && result.windows.length > 0 && (
+            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <div className="card-header">
+                <h2 className="card-title">Window Performance Over Time</h2>
+                <p className="card-description">Test returns for each rolling validation window</p>
+              </div>
+              <div className="card-content">
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={result.windows.map((w: { test_start: string; test_end: string; test_return: number; test_trades: number }, idx: number) => ({
+                        window: idx + 1,
+                        return: w.test_return,
+                        trades: w.test_trades,
+                        period: `${w.test_start.split('T')[0]} → ${w.test_end.split('T')[0]}`
+                      }))}
+                      margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+                    >
+                      <defs>
+                        <linearGradient id="barPositive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0.6} />
+                        </linearGradient>
+                        <linearGradient id="barNegative" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" opacity={0.4} vertical={false} />
+                      <XAxis
+                        dataKey="window"
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        stroke="var(--color-border-default)"
+                        tickFormatter={(v) => `W${v}`}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        stroke="var(--color-border-default)"
+                        tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                      />
+                      <Tooltip content={<WindowTooltip />} />
+                      <ReferenceLine y={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
+                      <Bar dataKey="return" radius={[4, 4, 0, 0]}>
+                        {result.windows.map((w: { test_return: number }, idx: number) => (
+                          <Cell
+                            key={idx}
+                            fill={w.test_return >= 0 ? 'url(#barPositive)' : 'url(#barNegative)'}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Summary annotation */}
+                <div className="chart-annotation" style={{ marginTop: 'var(--spacing-md)' }}>
+                  <span className="chart-annotation-label">Win Rate:</span>
+                  <span className="chart-annotation-value">
+                    {((result.windows.filter((w: { test_return: number }) => w.test_return > 0).length / result.windows.length) * 100).toFixed(0)}% of windows profitable
+                  </span>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Rolling Windows Table */}
           {result.windows && result.windows.length > 0 && (
@@ -299,7 +406,7 @@ export const WalkForwardPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.windows.map((w: any, idx: number) => (
+                      {result.windows.map((w: { test_start: string; test_end: string; best_params: Record<string, number | boolean | string>; test_return: number; test_trades: number }, idx: number) => (
                         <tr key={idx}>
                           <td>#{idx + 1}</td>
                           <td style={{ fontSize: '0.875rem' }}>
