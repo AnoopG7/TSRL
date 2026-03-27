@@ -362,7 +362,11 @@ export const WalkForwardPage: React.FC = () => {
                         stroke="var(--color-border-default)"
                         tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
                       />
-                      <Tooltip content={<WindowTooltip />} />
+                      <Tooltip
+                        content={<WindowTooltip />}
+                        position={{ x: 100, y: 10 }}
+                        wrapperStyle={{ pointerEvents: 'none' }}
+                      />
                       <ReferenceLine y={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
                       <Bar dataKey="return" radius={[4, 4, 0, 0]}>
                         {result.windows.map((w: { test_return: number }, idx: number) => (

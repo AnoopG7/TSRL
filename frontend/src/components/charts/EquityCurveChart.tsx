@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, Line, ComposedChart,
-  ReferenceLine, Brush, ReferenceDot,
+  ReferenceLine, Brush,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Maximize2 } from 'lucide-react';
 import type { EquityCurvePoint } from '../../lib/schemas';
@@ -34,45 +34,50 @@ const formatFullDate = (dateStr: unknown) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: Array<{ value: number; name: string; color: string }>;
-  label?: string;
-  initialCapital?: number;
-  highWatermark?: number;
+interface DataPointWithHWM {
+  date: string;
+  equity: number;
+  hwm: number;
 }
 
-const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label, initialCapital = 100000, highWatermark }) => {
-  if (!active || !payload || !payload.length) return null;
+interface HoverData {
+  date: string;
+  equity: number;
+  hwm: number;
+  returnPct: number;
+  drawdownFromPeak: number;
+}
 
-  const equity = payload[0]?.value || 0;
-  const returnPct = ((equity - initialCapital) / initialCapital) * 100;
-  const isProfit = equity >= initialCapital;
-  const drawdownFromPeak = highWatermark ? ((equity - highWatermark) / highWatermark) * 100 : 0;
+// Hover info bar component - displays data above the chart
+const HoverInfoBar: React.FC<{ data: HoverData | null; initialCapital: number }> = ({ data, initialCapital }) => {
+  if (!data) return <div className="chart-hover-bar chart-hover-bar-empty">Hover over chart to see details</div>;
+
+  const isProfit = data.equity >= initialCapital;
 
   return (
-    <div className="chart-tooltip">
-      <div className="chart-tooltip-header">{formatFullDate(label)}</div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Portfolio</span>
-        <span className={`chart-tooltip-value ${isProfit ? 'positive' : 'negative'}`}>
-          {formatCurrency(equity)}
+    <div className="chart-hover-bar">
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">Date</span>
+        <span className="chart-hover-value">{formatFullDate(data.date)}</span>
+      </div>
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">Portfolio</span>
+        <span className={`chart-hover-value ${isProfit ? 'positive' : 'negative'}`}>
+          {formatCurrency(data.equity)}
         </span>
       </div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Total Return</span>
-        <span className={`chart-tooltip-value ${isProfit ? 'positive' : 'negative'}`}>
-          {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">Total Return</span>
+        <span className={`chart-hover-value ${isProfit ? 'positive' : 'negative'}`}>
+          {data.returnPct >= 0 ? '+' : ''}{data.returnPct.toFixed(2)}%
         </span>
       </div>
-      {highWatermark && equity < highWatermark && (
-        <div className="chart-tooltip-row">
-          <span className="chart-tooltip-label">From Peak</span>
-          <span className="chart-tooltip-value negative">
-            {drawdownFromPeak.toFixed(2)}%
-          </span>
-        </div>
-      )}
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">From Peak</span>
+        <span className={`chart-hover-value ${data.drawdownFromPeak < 0 ? 'negative' : ''}`}>
+          {data.drawdownFromPeak.toFixed(2)}%
+        </span>
+      </div>
     </div>
   );
 };
@@ -97,6 +102,7 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
 }) => {
   const [showHighWatermark, setShowHighWatermark] = useState(true);
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
+  const [hoverData, setHoverData] = useState<HoverData | null>(null);
 
   // Calculate statistics and high watermark
   const stats = useMemo(() => {
@@ -132,6 +138,15 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
     const totalReturn = ((finalEquity - initialCapital) / initialCapital) * 100;
     const peakEquity = Math.max(...data.map(d => d.equity));
 
+    // Calculate Y-axis domain with padding for better visualization
+    const allValues = data.map(d => d.equity);
+    const minValue = Math.min(...allValues, initialCapital);
+    const maxValue = Math.max(...allValues, highWatermark);
+    const range = maxValue - minValue;
+    const padding = range * 0.1; // 10% padding
+    const yMin = Math.max(0, minValue - padding);
+    const yMax = maxValue + padding;
+
     return {
       dataWithHWM,
       totalReturn,
@@ -142,8 +157,33 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
       bestDay,
       worstDay,
       highWatermark: peakEquity,
+      yDomain: [yMin, yMax] as [number, number],
     };
   }, [data, initialCapital]);
+
+  // Custom tooltip that updates the hover bar state
+  const handleTooltipContent = useCallback(({ active, payload }: { active?: boolean; payload?: Array<{ payload: DataPointWithHWM }> }) => {
+    if (active && payload && payload.length > 0) {
+      const point = payload[0].payload;
+      const returnPct = ((point.equity - initialCapital) / initialCapital) * 100;
+      const drawdownFromPeak = ((point.equity - point.hwm) / point.hwm) * 100;
+      // Use setTimeout to avoid state update during render
+      setTimeout(() => {
+        setHoverData({
+          date: point.date,
+          equity: point.equity,
+          hwm: point.hwm,
+          returnPct,
+          drawdownFromPeak,
+        });
+      }, 0);
+    }
+    return null; // Return null to hide the default tooltip
+  }, [initialCapital]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverData(null);
+  }, []);
 
   // Comparison mode
   if (comparisonData && Object.keys(comparisonData).length > 0) {
@@ -198,6 +238,8 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
               dx={-10}
             />
             <Tooltip
+              position={{ x: 100, y: 10 }}
+              wrapperStyle={{ pointerEvents: 'none' }}
               content={({ active, payload, label }) => {
                 if (!active || !payload || !payload.length) return null;
                 return (
@@ -311,10 +353,17 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
         </label>
       </div>
 
+      {/* Hover Info Bar - displays above chart, never overlaps */}
+      <HoverInfoBar data={hoverData} initialCapital={initialCapital} />
+
       {/* Chart */}
       <div className="chart-container">
         <ResponsiveContainer width="100%" height={380}>
-          <ComposedChart data={dataWithHWM} margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+          <ComposedChart
+            data={dataWithHWM}
+            margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+            onMouseLeave={handleMouseLeave}
+          >
             <defs>
               <linearGradient id="equityGradientProfit" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
@@ -356,27 +405,30 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
               tickLine={false}
               axisLine={false}
               dx={-10}
+              domain={stats.yDomain}
             />
-            <Tooltip content={<CustomTooltip initialCapital={initialCapital} highWatermark={stats.highWatermark} />} />
+            {/* Tooltip that updates hover bar (returns null to hide itself) */}
+            <Tooltip content={handleTooltipContent} />
 
             {/* Initial Capital Reference */}
             <ReferenceLine
               y={initialCapital}
               stroke="var(--color-text-muted)"
               strokeDasharray="5 5"
-              strokeOpacity={0.6}
+              strokeOpacity={0.5}
             />
 
-            {/* High Watermark Line */}
+            {/* High Watermark Line - subtle dashed line */}
             {showHighWatermark && (
-              <Area
-                type="monotone"
+              <Line
+                type="stepAfter"
                 dataKey="hwm"
-                stroke="#f59e0b"
+                stroke="var(--color-text-muted)"
                 strokeWidth={1}
-                strokeDasharray="3 3"
-                fill="url(#hwmGradient)"
-                fillOpacity={0.3}
+                strokeDasharray="4 4"
+                strokeOpacity={0.4}
+                dot={false}
+                activeDot={false}
                 name="High Watermark"
               />
             )}
@@ -404,30 +456,6 @@ export const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
                 filter="url(#glow)"
                 animationDuration={1000}
                 name="Portfolio"
-              />
-            )}
-
-            {/* Best Day Marker */}
-            {bestDay.change > 3 && (
-              <ReferenceDot
-                x={bestDay.date}
-                y={dataWithHWM.find(d => d.date === bestDay.date)?.equity || 0}
-                r={5}
-                fill="#22c55e"
-                stroke="white"
-                strokeWidth={2}
-              />
-            )}
-
-            {/* Worst Day Marker */}
-            {worstDay.change < -3 && (
-              <ReferenceDot
-                x={worstDay.date}
-                y={dataWithHWM.find(d => d.date === worstDay.date)?.equity || 0}
-                r={5}
-                fill="#ef4444"
-                stroke="white"
-                strokeWidth={2}
               />
             )}
 

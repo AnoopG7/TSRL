@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
@@ -20,35 +20,34 @@ const formatFullDate = (dateStr: unknown) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
+interface HoverData {
+  date: string;
+  drawdown: number;
+  recoveryNeeded: number;
 }
 
-const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-
-  const drawdown = payload[0]?.value || 0;
-  const recoveryNeeded = (-drawdown / (100 + drawdown)) * 100;
+// Hover info bar component - displays data above the chart
+const HoverInfoBar: React.FC<{ data: HoverData | null }> = ({ data }) => {
+  if (!data) return <div className="chart-hover-bar chart-hover-bar-empty">Hover over chart to see details</div>;
 
   return (
-    <div className="chart-tooltip">
-      <div className="chart-tooltip-header">{formatFullDate(label)}</div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Drawdown</span>
-        <span className="chart-tooltip-value negative">
-          {drawdown.toFixed(2)}%
+    <div className="chart-hover-bar">
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">Date</span>
+        <span className="chart-hover-value">{formatFullDate(data.date)}</span>
+      </div>
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">Drawdown</span>
+        <span className={`chart-hover-value ${data.drawdown < 0 ? 'negative' : ''}`}>
+          {data.drawdown.toFixed(2)}%
         </span>
       </div>
-      {drawdown < 0 && (
-        <div className="chart-tooltip-row">
-          <span className="chart-tooltip-label">To Recover</span>
-          <span className="chart-tooltip-value" style={{ color: 'var(--color-warning-400)' }}>
-            +{recoveryNeeded.toFixed(2)}%
-          </span>
-        </div>
-      )}
+      <div className="chart-hover-item">
+        <span className="chart-hover-label">To Recover</span>
+        <span className="chart-hover-value" style={{ color: data.drawdown < 0 ? 'var(--color-warning-400)' : 'var(--color-text-secondary)' }}>
+          +{data.recoveryNeeded.toFixed(2)}%
+        </span>
+      </div>
     </div>
   );
 };
@@ -73,6 +72,29 @@ interface UnderwaterPeriod {
 
 export const DrawdownChart: React.FC<DrawdownChartProps> = ({ data }) => {
   const [showUnderwaterPeriods, setShowUnderwaterPeriods] = useState(true);
+  const [hoverData, setHoverData] = useState<HoverData | null>(null);
+
+  // Custom tooltip that updates the hover bar state
+  const handleTooltipContent = useCallback(({ active, payload }: { active?: boolean; payload?: Array<{ payload: DrawdownPoint }> }) => {
+    if (active && payload && payload.length > 0) {
+      const point = payload[0].payload;
+      const drawdown = point.drawdown;
+      const recoveryNeeded = drawdown < 0 ? (Math.abs(drawdown) / (100 + drawdown)) * 100 : 0;
+      // Use setTimeout to avoid state update during render
+      setTimeout(() => {
+        setHoverData({
+          date: point.date,
+          drawdown,
+          recoveryNeeded,
+        });
+      }, 0);
+    }
+    return null; // Return null to hide the default tooltip
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverData(null);
+  }, []);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -185,10 +207,17 @@ export const DrawdownChart: React.FC<DrawdownChartProps> = ({ data }) => {
         </label>
       </div>
 
+      {/* Hover Info Bar - displays above chart, never overlaps */}
+      <HoverInfoBar data={hoverData} />
+
       {/* Chart */}
       <div className="chart-container">
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data} margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+            onMouseLeave={handleMouseLeave}
+          >
             <defs>
               <linearGradient id="drawdownGradient" x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="#ef4444" stopOpacity={0.5} />
@@ -227,7 +256,8 @@ export const DrawdownChart: React.FC<DrawdownChartProps> = ({ data }) => {
               domain={['dataMin - 2', 2]}
               dx={-10}
             />
-            <Tooltip content={<CustomTooltip />} />
+            {/* Tooltip that updates hover bar (returns null to hide itself) */}
+            <Tooltip content={handleTooltipContent} />
 
             {/* Zero line */}
             <ReferenceLine

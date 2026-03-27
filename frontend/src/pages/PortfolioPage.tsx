@@ -315,6 +315,8 @@ export const PortfolioPage: React.FC = () => {
                         ))}
                       </Pie>
                       <Tooltip
+                        position={{ x: 100, y: 10 }}
+                        wrapperStyle={{ pointerEvents: 'none' }}
                         content={({ active, payload }) => {
                           if (!active || !payload || !payload.length) return null;
                           const data = payload[0].payload;
@@ -369,7 +371,11 @@ export const PortfolioPage: React.FC = () => {
                         stroke="var(--color-border-default)"
                         width={50}
                       />
-                      <Tooltip content={<PerformanceTooltip />} />
+                      <Tooltip
+                        content={<PerformanceTooltip />}
+                        position={{ x: 100, y: 10 }}
+                        wrapperStyle={{ pointerEvents: 'none' }}
+                      />
                       <ReferenceLine x={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
                       <Bar dataKey="return" radius={[0, 4, 4, 0]}>
                         {assetPerformanceData.map((entry, index) => (

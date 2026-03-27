@@ -247,6 +247,8 @@ export const ParameterSensitivityChart: React.FC<ParameterSensitivityChartProps>
 
               <Tooltip
                 cursor={{ strokeDasharray: '3 3', stroke: 'var(--color-accent-400)' }}
+                position={{ x: 100, y: 10 }}
+                wrapperStyle={{ pointerEvents: 'none' }}
                 content={({ active, payload }) => {
                   if (!active || !payload || !payload.length) return null;
                   const d = payload[0].payload;
