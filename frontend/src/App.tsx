@@ -5,6 +5,7 @@ import { ComparisonPage } from './pages/ComparisonPage';
 import { PortfolioPage } from './pages/PortfolioPage';
 import { OptimizationPage } from './pages/OptimizationPage';
 import { WalkForwardPage } from './pages/WalkForwardPage';
+import { FundamentalsPage } from './pages/FundamentalsPage';
 import './styles/index.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/optimization" element={<OptimizationPage />} />
         <Route path="/walkforward" element={<WalkForwardPage />} />
+        <Route path="/fundamentals" element={<FundamentalsPage />} />
       </Route>
     </Routes>
   );

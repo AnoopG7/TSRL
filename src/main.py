@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
@@ -36,6 +36,7 @@ from src.ml.strategies.ml_strategies import MLRandomForestStrategy, MLGradientBo
 
 from src.application.services.backtest_service import BacktestService
 from src.application.services.data_service import DataService
+from src.application.services.fundamental_service import FundamentalService
 
 settings = get_settings()
 
@@ -556,6 +557,159 @@ async def train_ml_model(request: MLTrainRequest):
         raise HTTPException(status_code=404, detail=str(e)) from None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+# ── Compare must be registered BEFORE /{symbol} so FastAPI doesn't treat "compare" as a symbol
+@app.get("/api/v1/fundamentals/compare")
+async def compare_fundamentals(
+    symbols: str = Query(..., description="Comma-separated symbols, e.g. 'AAPL,MSFT,GOOGL'"),
+    source: str = Query("yfinance", description="Data source: 'yfinance' or 'fmp'"),
+):
+    """Compare fundamental metrics across multiple stocks side-by-side (concurrent fetch)."""
+    import asyncio
+    import dataclasses
+    from concurrent.futures import ThreadPoolExecutor
+
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if len(symbol_list) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 symbols required for comparison")
+    if len(symbol_list) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 symbols per comparison")
+
+    if source == "fmp" and not os.environ.get("FMP_API_KEY"):
+        raise HTTPException(status_code=400, detail="FMP_API_KEY not configured.")
+
+    service = FundamentalService(source=source)
+
+    def _fetch(sym: str) -> tuple:
+        try:
+            result = service.analyze(sym, include_news=False)
+            report = result["report"]
+            return sym, {
+                "company_name": report.company_name,
+                "sector": report.sector,
+                "market_cap": report.market_cap,
+                "current_price": report.current_price,
+                "pe_ratio": report.pe_ratio,
+                "pb_ratio": report.pb_ratio,
+                "ps_ratio": report.ps_ratio,
+                "ev_ebitda": report.ev_ebitda,
+                "peg_ratio": getattr(report, "peg_ratio", None),
+                "roe": report.roe,
+                "roa": report.roa,
+                "gross_margin": report.gross_margin,
+                "operating_margin": report.operating_margin,
+                "net_margin": report.net_margin,
+                "debt_to_equity": report.debt_to_equity,
+                "current_ratio": report.current_ratio,
+                "interest_coverage": getattr(report, "interest_coverage", None),
+                "free_cash_flow": report.free_cash_flow,
+                "fcf_margin": report.fcf_margin,
+                "revenue_cagr_3yr": report.revenue_cagr_3yr,
+                "earnings_cagr_3yr": getattr(report, "earnings_cagr_3yr", None),
+                "health_score": report.health_score,
+                "health_grade": report.health_grade,
+                "beta": report.beta,
+                "dividend_yield": report.dividend_yield,
+                "analyst_rating": report.analyst_rating,
+                "piotroski_score": getattr(report, "piotroski_score", None),
+                "altman_z_score": getattr(report, "altman_z_score", None),
+                "altman_z_zone": getattr(report, "altman_z_zone", None),
+            }
+        except Exception as e:
+            return sym, {"error": str(e)}
+
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        tasks = [loop.run_in_executor(executor, _fetch, sym) for sym in symbol_list]
+        raw_results = await asyncio.gather(*tasks)
+
+    results = {sym: data for sym, data in raw_results}
+
+    return {
+        "status": "success",
+        "symbols": symbol_list,
+        "comparison": results,
+    }
+
+
+# ── Specific routes /{symbol}/news and /{symbol}/insiders MUST come before /{symbol}
+# ── to avoid route shadowing
+@app.get("/api/v1/fundamentals/{symbol}")
+async def get_fundamentals(
+    symbol: str,
+    source: str = Query("yfinance", description="Data source: 'yfinance' (free) or 'fmp' (paid)"),
+    include_news: bool = Query(True, description="Include news and sentiment data"),
+    use_cache: bool = Query(True, description="Use cache (bypassed in production)"),
+):
+    """Get complete fundamental analysis for a stock.
+
+    Source options:
+    - yfinance: Free, good for development (default)
+    - fmp: Paid (Financial Modeling Prep), production-grade
+
+    Cache behavior:
+    - In development: Respects use_cache parameter
+    - In production: Always fetches fresh (use_cache is ignored)
+    """
+    import dataclasses
+
+    if source == "fmp" and not os.environ.get("FMP_API_KEY"):
+        raise HTTPException(
+            status_code=400,
+            detail="FMP_API_KEY not configured. Add it to config/.env to use FMP as data source.",
+        )
+
+    try:
+        service = FundamentalService(source=source)
+        result = service.analyze(symbol.upper(), include_news=include_news, use_cache=use_cache)
+        report = result["report"]
+        from_cache = result["from_cache"]
+        return {"status": "success", "from_cache": from_cache, **dataclasses.asdict(report)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.get("/api/v1/fundamentals/{symbol}/news")
+async def get_fundamentals_news(symbol: str):
+    """Get only news and sentiment for a stock (lightweight endpoint)."""
+    try:
+        service = FundamentalService(source="yfinance")
+        result = service.analyze(symbol.upper(), include_news=True, use_cache=False)
+        report = result["report"]
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "news": report.news,
+            "sentiment": report.sentiment,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.get("/api/v1/fundamentals/{symbol}/insiders")
+async def get_fundamentals_insiders(
+    symbol: str,
+    source: str = Query("finnhub", description="Data source: 'finnhub' or 'fmp'"),
+):
+    """Get insider trading transactions (Form 4 data) for a stock."""
+    try:
+        from src.infrastructure.data_providers.insider_provider import InsiderProvider
+
+        provider = InsiderProvider(source=source)
+        transactions = provider.get_transactions(symbol.upper())
+        net_sentiment = provider.compute_net_sentiment(transactions)
+        net_buy_value = provider.compute_net_buy_value(transactions)
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "transactions": [t.__dict__ for t in transactions],
+            "net_sentiment": net_sentiment,
+            "net_buy_value": net_buy_value,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
 
 
 @app.get("/api/v1/health")

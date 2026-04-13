@@ -19,6 +19,7 @@ import type {
   OptimizationResult,
   WalkForwardResult,
 } from '../lib/schemas';
+import type { FundamentalReport } from '../lib/schemas/fundamental.schema';
 
 interface BacktestResponse {
   status: string;
@@ -190,3 +191,41 @@ export function useRunWalkForward() {
     },
   });
 }
+
+// ── Fundamental Analysis Hooks ─────────────────────────────────────────
+
+export function useFundamentals(symbol: string, source: 'yfinance' | 'fmp' = 'yfinance', enabled: boolean = true, useCache: boolean = true) {
+  return useQuery<FundamentalReport & { from_cache?: boolean }>({
+    queryKey: [...QUERY_KEYS.fundamentals(symbol), source],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_ENDPOINTS.fundamentals(symbol)}?source=${source}&use_cache=${useCache}`);
+      return data;
+    },
+    enabled: enabled && symbol.length > 0,
+    staleTime: useCache ? CACHE_TIMES.fundamentals : 0,
+  });
+}
+
+export function useCompareFundamentals() {
+  return useMutation({
+    mutationFn: async ({ symbols, source = 'yfinance' }: { symbols: string, source?: 'yfinance' | 'fmp' }) => {
+      const { data } = await api.get(
+        `${API_ENDPOINTS.fundamentalsCompare}?symbols=${symbols}&source=${source}`
+      );
+      return data;
+    },
+  });
+}
+
+export function useInsiders(symbol: string, source: 'yfinance' | 'fmp' = 'yfinance', enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['insiders', symbol, source],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_ENDPOINTS.fundamentalsInsiders(symbol)}?source=${source}`);
+      return data;
+    },
+    enabled: enabled && symbol.length > 0,
+    staleTime: CACHE_TIMES.fundamentals,
+  });
+}
+

@@ -35,14 +35,20 @@ export const API_ENDPOINTS = {
   backtestPortfolio: '/api/v1/backtests/portfolio',
   optimization: (method: string) => `/api/v1/optimization/${method}`,
   walkforward: '/api/v1/walkforward/run',
+  fundamentals: (symbol: string) => `/api/v1/fundamentals/${symbol}`,
+  fundamentalsNews: (symbol: string) => `/api/v1/fundamentals/${symbol}/news`,
+  fundamentalsInsiders: (symbol: string) => `/api/v1/fundamentals/${symbol}/insiders`,
+  fundamentalsCompare: '/api/v1/fundamentals/compare',
 } as const;
 
 // Query keys for React Query
 export const QUERY_KEYS = {
   strategies: ['strategies'] as const,
+  fundamentals: (symbol: string) => ['fundamentals', symbol] as const,
 } as const;
 
 // Cache times (in milliseconds)
 export const CACHE_TIMES = {
   strategies: 5 * 60 * 1000, // 5 minutes - strategies rarely change
+  fundamentals: 60 * 60 * 1000, // 1 hour - fundamentals update intraday
 } as const;
