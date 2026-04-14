@@ -44,7 +44,10 @@ python -m pytest tests/unit/test_properties.py  # Property-based tests
 python -m pytest tests/performance/ -v       # Performance benchmarks
 
 # Run single test file
-python -m pytest tests/path/to/test_file.py::test_function_name -v
+python -m pytest tests/unit/domain/test_metrics.py -v
+
+# Run specific test function
+python -m pytest tests/unit/domain/test_metrics.py::test_sharpe_ratio -v
 ```
 
 ### Linting & Type Checking
@@ -75,6 +78,9 @@ PYTHONPATH=. python -m src.cli walkforward --strategy ema_crossover --symbol AAP
 
 # Fetch OHLCV data
 PYTHONPATH=. python -m src.cli fetch-data --symbol AAPL
+
+# Portfolio backtest with rebalancing
+PYTHONPATH=. python -m src.cli portfolio --strategy ema_crossover --symbols "AAPL,MSFT,GOOGL" --start-date 2023-01-01 --end-date 2024-01-01 --rebalance monthly
 ```
 
 ## Architecture Overview
@@ -84,13 +90,13 @@ PYTHONPATH=. python -m src.cli fetch-data --symbol AAPL
 ```
 Presentation (API/CLI/Frontend)
     ↓
-Application Services (BacktestService, DataService)
+Application Services (BacktestService, DataService, FundamentalService)
     ↓
 Domain Layer (Entities, Value Objects, Events)
     ↓
-Infrastructure (Database, Data Providers, ML)
+Infrastructure (Database, Data Providers, ML, News)
     ↓
-Data Layer (SQLite, Yahoo Finance, NSE)
+Data Layer (SQLite, Yahoo Finance, NSE, Alpha Vantage)
 ```
 
 **Key Principle**: Dependencies point inward. Domain layer has no external dependencies.
@@ -100,11 +106,11 @@ Data Layer (SQLite, Yahoo Finance, NSE)
 ```
 TSRL/
 ├── src/
-│   ├── domain/           # Core entities (Trade, Position, Signal, OHLCV, Metrics)
-│   ├── application/      # Services (BacktestService, DataService)
-│   ├── infrastructure/   # SQLAlchemy, data providers (Yahoo, NSE, Alpha Vantage)
+│   ├── domain/           # Core entities (Trade, Position, Signal, OHLCV, Metrics, Fundamental)
+│   ├── application/      # Services (BacktestService, DataService, FundamentalService)
+│   ├── infrastructure/   # SQLAlchemy, data providers (Yahoo, NSE, Alpha Vantage, Finnhub), news, insiders
 │   ├── strategies/       # 12+ strategies with registry pattern
-│   ├── engine/           # Backtest, optimizer, walkforward engines
+│   ├── engine/           # Backtest, portfolio, optimizer, walkforward engines
 │   ├── ml/               # Feature engineering (116 features), RF/GBM classifiers
 │   ├── analytics/        # 50+ risk metrics (Sharpe, Sortino, VaR, CVaR)
 │   ├── main.py           # FastAPI entry point
@@ -136,6 +142,10 @@ StrategyRegistry.auto_discover()
 
 **ML Pipeline**: 116-feature engineering (lag, rolling, technical indicators, volume) → StandardScaler → RandomForest/GradientBoosting classifier.
 
+**Portfolio Engine** (`src/engine/backtest/portfolio_engine.py`): Multi-asset backtesting with configurable rebalancing (monthly/quarterly/yearly or threshold-based), benchmark comparison (beta, alpha, tracking error), and correlation analysis.
+
+**Fundamental Analysis** (`src/application/services/fundamental_service.py`): Complete financial analysis with 5 pillars (Valuation, Profitability, Liquidity, Solvency, Cash Flow), health score (0-100), Piotroski F-Score, Altman Z-Score, news/sentiment, insider tracking, and EPS surprise history.
+
 ### Configuration
 
 Edit `config/settings.yaml` for:
@@ -155,20 +165,38 @@ Pydantic settings class loads from this file automatically.
 | `/api/v1/strategies` | GET | List strategies |
 | `/api/v1/backtests/run` | POST | Run backtest |
 | `/api/v1/backtests/compare` | POST | Compare strategies |
+| `/api/v1/backtests/portfolio` | POST | Run portfolio backtest |
 | `/api/v1/optimization/grid` | POST | Grid search |
 | `/api/v1/optimization/random` | POST | Random search |
 | `/api/v1/optimization/genetic` | POST | Genetic algorithm |
 | `/api/v1/walkforward/run` | POST | Walk-forward analysis |
 | `/api/v1/ml/train` | POST | Train ML model |
 | `/api/v1/data/ingest` | POST | Fetch and store OHLCV |
+| `/api/v1/fundamentals/{symbol}` | GET | Full fundamental analysis (5 pillars + health score) |
+| `/api/v1/fundamentals/{symbol}/news` | GET | News and sentiment only |
+| `/api/v1/fundamentals/{symbol}/insiders` | GET | Insider transactions |
+| `/api/v1/fundamentals/compare` | GET | Compare fundamentals across symbols |
 
 Full API docs at `http://localhost:8000/docs` when running.
+
+### Frontend Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Backtest | `/` | Single strategy backtest with equity curves |
+| Compare | `/compare` | Multi-strategy comparison |
+| Portfolio | `/portfolio` | Multi-asset portfolio backtesting |
+| Optimization | `/optimization` | Parameter optimization (grid/random/genetic) |
+| Walk-Forward | `/walkforward` | Rolling window validation |
+| Fundamentals | `/fundamentals` | Financial health analysis with news/sentiment |
 
 ### Frontend State Management
 
 Uses Zustand for global state:
 - `useBacktestStore` - Backtest results, trades, metrics
-- `useStrategyStore` - Available strategies, selected strategy
+- `useDataSourceStore` - Selected data source (yahoo/alpha_vantage)
+- `useThemeStore` - Light/dark theme
+- React Query for server state (fundamentals, backtests, etc.)
 - State persisted in `frontend/src/store/`
 
 ### Testing Architecture
@@ -204,3 +232,19 @@ SQLite with SQLAlchemy ORM. Models in `src/infrastructure/database/models/`:
 3. **Commission/slippage** modeled in backtest engine - configurable per backtest
 4. **Walk-forward** uses 252-day train / 63-day test windows by default
 5. **ML models** saved to `data/models/` with joblib
+6. **Fundamental data** cached in `data/cache/fundamentals/` (1hr TTL in dev, bypassed in prod)
+7. **News/sentiment** from Finnhub (primary) + Alpha Vantage (fallback)
+8. **Insider transactions** fetched from Finnhub → Alpha Vantage → SEC EDGAR (fallback chain)
+
+### Environment-Aware Caching
+
+Fundamental analysis has environment-aware caching:
+
+| Environment | Backend Cache | Behavior |
+|------------|--------------|----------|
+| Development | Enabled (1hr TTL) | Use cache, refresh button clears cache |
+| Production | Disabled | Always fetch fresh |
+
+Set via `ENVIRONMENT=production` in `config/.env`.
+
+API supports `?use_cache=false` to bypass cache. Response includes `from_cache` flag.
