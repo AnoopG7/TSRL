@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { AlertCircle, BarChart3, Trophy, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
@@ -20,6 +20,49 @@ const ComparisonFormSchema = z.object({
   initial_capital: z.number().min(1000).max(100000000),
   source: z.enum(['yahoo', 'alpha_vantage']).default('yahoo'),
 });
+
+// Stats card component
+const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon: React.ReactNode; positive?: boolean; negative?: boolean }> = ({
+  label, value, subtext, icon, positive, negative
+}) => (
+  <div className="chart-stat-card">
+    <div className={`chart-stat-icon ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{icon}</div>
+    <div className="chart-stat-content">
+      <span className="chart-stat-label">{label}</span>
+      <span className={`chart-stat-value ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{value}</span>
+      {subtext && <span className="chart-stat-subtext">{subtext}</span>}
+    </div>
+  </div>
+);
+
+// Rank badge component
+const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
+  if (rank > 3) return null;
+  const colors = {
+    1: { bg: 'rgba(255, 215, 0, 0.15)', border: 'rgba(255, 215, 0, 0.4)', color: '#ffd700' },
+    2: { bg: 'rgba(192, 192, 192, 0.15)', border: 'rgba(192, 192, 192, 0.4)', color: '#c0c0c0' },
+    3: { bg: 'rgba(205, 127, 50, 0.15)', border: 'rgba(205, 127, 50, 0.4)', color: '#cd7f32' },
+  };
+  const style = colors[rank as 1 | 2 | 3];
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '2px 8px',
+      borderRadius: '12px',
+      fontSize: '0.7rem',
+      fontWeight: 600,
+      background: style.bg,
+      border: `1px solid ${style.border}`,
+      color: style.color,
+      marginLeft: '8px',
+    }}>
+      <Trophy size={10} />
+      #{rank}
+    </span>
+  );
+};
 
 export const ComparisonPage: React.FC = () => {
   const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
@@ -72,6 +115,45 @@ export const ComparisonPage: React.FC = () => {
         Object.entries(comparisonResult.strategies).map(([name, res]) => [name, res.equity_curve])
       )
     : undefined;
+
+  // Calculate summary stats
+  const summaryStats = useMemo(() => {
+    if (strategyResults.length === 0) return null;
+
+    const sorted = [...strategyResults].sort((a, b) => b.total_return - a.total_return);
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+    const avgReturn = strategyResults.reduce((sum, r) => sum + r.total_return, 0) / strategyResults.length;
+    const avgSharpe = strategyResults.reduce((sum, r) => sum + r.metrics.sharpe_ratio, 0) / strategyResults.length;
+    const profitableCount = strategyResults.filter(r => r.total_return > 0).length;
+
+    return {
+      best,
+      worst,
+      avgReturn,
+      avgSharpe,
+      profitableCount,
+      totalStrategies: strategyResults.length,
+    };
+  }, [strategyResults]);
+
+  // Get rank for a strategy by return
+  const getRank = (strategy: string) => {
+    const sorted = [...strategyResults].sort((a, b) => b.total_return - a.total_return);
+    return sorted.findIndex(r => r.strategy === strategy) + 1;
+  };
+
+  // Check if a metric is the best among all strategies
+  const isBestMetric = (strategy: string, metric: 'sharpe_ratio' | 'win_rate' | 'profit_factor' | 'max_drawdown_pct') => {
+    const current = strategyResults.find(r => r.strategy === strategy);
+    if (!current) return false;
+
+    if (metric === 'max_drawdown_pct') {
+      // Lower is better for drawdown
+      return current.metrics[metric] === Math.min(...strategyResults.map(r => r.metrics[metric]));
+    }
+    return current.metrics[metric] === Math.max(...strategyResults.map(r => r.metrics[metric]));
+  };
 
   return (
     <div className="animate-fadeIn">
@@ -171,11 +253,52 @@ export const ComparisonPage: React.FC = () => {
         </section>
       )}
 
+      {/* Summary Stats */}
+      {summaryStats && (
+        <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <div className="card-header">
+            <h2 className="card-title">Comparison Summary</h2>
+          </div>
+          <div className="card-content">
+            <div className="chart-stats-bar">
+              <StatCard
+                label="Best Performer"
+                value={summaryStats.best.strategy}
+                subtext={`+${(summaryStats.best.total_return * 100).toFixed(1)}%`}
+                icon={<Trophy size={16} />}
+                positive
+              />
+              <StatCard
+                label="Avg Return"
+                value={`${(summaryStats.avgReturn * 100).toFixed(2)}%`}
+                icon={summaryStats.avgReturn >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                positive={summaryStats.avgReturn >= 0}
+                negative={summaryStats.avgReturn < 0}
+              />
+              <StatCard
+                label="Avg Sharpe"
+                value={summaryStats.avgSharpe.toFixed(2)}
+                icon={<Award size={16} />}
+                positive={summaryStats.avgSharpe > 1}
+              />
+              <StatCard
+                label="Profitable"
+                value={`${summaryStats.profitableCount}/${summaryStats.totalStrategies}`}
+                subtext={`${((summaryStats.profitableCount / summaryStats.totalStrategies) * 100).toFixed(0)}%`}
+                icon={<Target size={16} />}
+                positive={summaryStats.profitableCount > summaryStats.totalStrategies / 2}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Comparison table */}
       {strategyResults.length > 0 && (
         <section className="card">
           <div className="card-header">
             <h2 className="card-title">Metrics Comparison</h2>
+            <p className="card-description">Strategies ranked by total return. Best metrics in each category are highlighted.</p>
           </div>
           <div className="card-content">
             <div className="table-container">
@@ -195,28 +318,62 @@ export const ComparisonPage: React.FC = () => {
                 <tbody>
                   {strategyResults
                     .sort((a, b) => b.total_return - a.total_return)
-                    .map((r) => (
-                    <tr key={r.strategy}>
-                      <td style={{ fontWeight: 600 }}>{r.strategy}</td>
-                      <td className={r.total_return >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
-                        {(r.total_return * 100).toFixed(2)}%
-                      </td>
-                      <td style={{ textAlign: 'right' }}>${r.final_capital.toLocaleString()}</td>
-                      <td className={r.metrics.sharpe_ratio >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right' }}>
-                        {r.metrics.sharpe_ratio.toFixed(2)}
-                      </td>
-                      <td className="text-negative" style={{ textAlign: 'right' }}>
-                        {r.metrics.max_drawdown_pct.toFixed(2)}%
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {(r.metrics.win_rate * 100).toFixed(1)}%
-                      </td>
-                      <td style={{ textAlign: 'right' }}>{r.total_trades}</td>
-                      <td style={{ textAlign: 'right' }}>{r.metrics.profit_factor.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                    .map((r) => {
+                      const rank = getRank(r.strategy);
+                      return (
+                        <tr key={r.strategy} style={rank === 1 ? { background: 'rgba(34, 197, 94, 0.05)' } : undefined}>
+                          <td style={{ fontWeight: 600 }}>
+                            {r.strategy}
+                            <RankBadge rank={rank} />
+                          </td>
+                          <td className={r.total_return >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 600 }}>
+                            {(r.total_return * 100).toFixed(2)}%
+                          </td>
+                          <td style={{ textAlign: 'right' }}>${r.final_capital.toLocaleString()}</td>
+                          <td style={{
+                            textAlign: 'right',
+                            fontWeight: isBestMetric(r.strategy, 'sharpe_ratio') ? 600 : 400,
+                            color: isBestMetric(r.strategy, 'sharpe_ratio') ? 'var(--color-accent-400)' : r.metrics.sharpe_ratio >= 0 ? 'var(--color-success-500)' : 'var(--color-danger-500)'
+                          }}>
+                            {r.metrics.sharpe_ratio.toFixed(2)}
+                            {isBestMetric(r.strategy, 'sharpe_ratio') && <span style={{ marginLeft: '4px', fontSize: '0.65rem' }}>★</span>}
+                          </td>
+                          <td style={{
+                            textAlign: 'right',
+                            fontWeight: isBestMetric(r.strategy, 'max_drawdown_pct') ? 600 : 400,
+                            color: isBestMetric(r.strategy, 'max_drawdown_pct') ? 'var(--color-accent-400)' : 'var(--color-danger-500)'
+                          }}>
+                            {r.metrics.max_drawdown_pct.toFixed(2)}%
+                            {isBestMetric(r.strategy, 'max_drawdown_pct') && <span style={{ marginLeft: '4px', fontSize: '0.65rem' }}>★</span>}
+                          </td>
+                          <td style={{
+                            textAlign: 'right',
+                            fontWeight: isBestMetric(r.strategy, 'win_rate') ? 600 : 400,
+                            color: isBestMetric(r.strategy, 'win_rate') ? 'var(--color-accent-400)' : undefined
+                          }}>
+                            {(r.metrics.win_rate * 100).toFixed(1)}%
+                            {isBestMetric(r.strategy, 'win_rate') && <span style={{ marginLeft: '4px', fontSize: '0.65rem' }}>★</span>}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>{r.total_trades}</td>
+                          <td style={{
+                            textAlign: 'right',
+                            fontWeight: isBestMetric(r.strategy, 'profit_factor') ? 600 : 400,
+                            color: isBestMetric(r.strategy, 'profit_factor') ? 'var(--color-accent-400)' : undefined
+                          }}>
+                            {r.metrics.profit_factor.toFixed(2)}
+                            {isBestMetric(r.strategy, 'profit_factor') && <span style={{ marginLeft: '4px', fontSize: '0.65rem' }}>★</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Legend */}
+            <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              <span><Trophy size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Rank badges show top 3 by return</span>
+              <span><span style={{ color: 'var(--color-accent-400)' }}>★</span> Best in category</span>
             </div>
           </div>
         </section>

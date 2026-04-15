@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Target, AlertCircle, DollarSign, TrendingUp, TrendingDown, Activity, BarChart3, LineChart } from 'lucide-react';
+import { Target, AlertCircle, DollarSign, TrendingUp, TrendingDown, Activity, BarChart3, LineChart, Award, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { BacktestConfigSchema } from '../lib/schemas';
 import type { BacktestConfig } from '../lib/schemas';
@@ -15,6 +15,20 @@ import { SkeletonChart } from '../components/ui/SkeletonChart';
 import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useRunBacktest } from '../hooks/apiHooks';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
+
+// Stats card component
+const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon: React.ReactNode; positive?: boolean; negative?: boolean }> = ({
+  label, value, subtext, icon, positive, negative
+}) => (
+  <div className="chart-stat-card">
+    <div className={`chart-stat-icon ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{icon}</div>
+    <div className="chart-stat-content">
+      <span className="chart-stat-label">{label}</span>
+      <span className={`chart-stat-value ${positive ? 'positive' : ''} ${negative ? 'negative' : ''}`}>{value}</span>
+      {subtext && <span className="chart-stat-subtext">{subtext}</span>}
+    </div>
+  </div>
+);
 
 export const BacktestPage: React.FC = () => {
   const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
@@ -70,6 +84,38 @@ export const BacktestPage: React.FC = () => {
   const isLoading = runBacktestMutation.isPending || loading;
 
   const hasChartData = equityCurve.length > 0 || drawdownSeries.length > 0 || monthlyReturns.length > 0;
+
+  // Calculate trade statistics
+  const tradeStats = useMemo(() => {
+    if (!trades || trades.length === 0) return null;
+
+    const wins = trades.filter(t => t.pnl > 0);
+    const losses = trades.filter(t => t.pnl < 0);
+
+    const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? losses.reduce((sum, t) => sum + t.pnl, 0) / losses.length : 0;
+    const largestWin = wins.length > 0 ? Math.max(...wins.map(t => t.pnl)) : 0;
+    const largestLoss = losses.length > 0 ? Math.min(...losses.map(t => t.pnl)) : 0;
+    const avgHoldingDays = trades.reduce((sum, t) => {
+      const days = (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / (1000 * 60 * 60 * 24);
+      return sum + days;
+    }, 0) / trades.length;
+
+    const bestTrade = trades.reduce((best, t) => t.pnl > best.pnl ? t : best, trades[0]);
+    const worstTrade = trades.reduce((worst, t) => t.pnl < worst.pnl ? t : worst, trades[0]);
+
+    return {
+      avgWin,
+      avgLoss,
+      largestWin,
+      largestLoss,
+      avgHoldingDays,
+      winCount: wins.length,
+      lossCount: losses.length,
+      bestTrade,
+      worstTrade,
+    };
+  }, [trades]);
 
   return (
     <div className="animate-fadeIn">
@@ -154,6 +200,46 @@ export const BacktestPage: React.FC = () => {
 
       {result && (
         <>
+          {/* Quick Summary Bar */}
+          <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <div className="card-header">
+              <h2 className="card-title">Quick Summary</h2>
+            </div>
+            <div className="card-content">
+              <div className="chart-stats-bar">
+                <StatCard
+                  label="Total Return"
+                  value={`${(result.total_return * 100).toFixed(2)}%`}
+                  subtext={`$${(result.final_capital - result.final_capital / (1 + result.total_return)).toLocaleString(undefined, { maximumFractionDigits: 0 })} profit`}
+                  icon={result.total_return >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  positive={result.total_return >= 0}
+                  negative={result.total_return < 0}
+                />
+                <StatCard
+                  label="Win Rate"
+                  value={`${(result.metrics.win_rate * 100).toFixed(1)}%`}
+                  subtext={tradeStats ? `${tradeStats.winCount}W / ${tradeStats.lossCount}L` : undefined}
+                  icon={<Award size={16} />}
+                  positive={result.metrics.win_rate >= 0.5}
+                />
+                <StatCard
+                  label="Risk-Adjusted"
+                  value={result.metrics.sharpe_ratio.toFixed(2)}
+                  subtext="Sharpe Ratio"
+                  icon={<Zap size={16} />}
+                  positive={result.metrics.sharpe_ratio > 1}
+                  negative={result.metrics.sharpe_ratio < 0}
+                />
+                <StatCard
+                  label="Max Drawdown"
+                  value={`${result.metrics.max_drawdown_pct.toFixed(2)}%`}
+                  icon={<TrendingDown size={16} />}
+                  negative
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Performance Summary */}
           <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
             <div className="card-header">
@@ -222,9 +308,54 @@ export const BacktestPage: React.FC = () => {
           {/* Trades Table */}
           <section className="card">
             <div className="card-header">
-              <h2 className="card-title">Recent Trades</h2>
+              <h2 className="card-title">Trade History</h2>
+              <p className="card-description">Showing {Math.min(trades.length, 10)} of {trades.length} trades</p>
             </div>
             <div className="card-content">
+              {/* Trade Statistics */}
+              {tradeStats && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: 'var(--spacing-md)',
+                  marginBottom: 'var(--spacing-lg)',
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--color-bg-tertiary)',
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Win</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-success-500)' }}>
+                      ${tradeStats.avgWin.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Loss</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-danger-500)' }}>
+                      ${tradeStats.avgLoss.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Best Trade</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-success-500)' }}>
+                      ${tradeStats.largestWin.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Worst Trade</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-danger-500)' }}>
+                      ${tradeStats.largestLoss.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Holding</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      {tradeStats.avgHoldingDays.toFixed(1)} days
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="table-container">
                 <table className="table">
                   <thead>
@@ -239,25 +370,31 @@ export const BacktestPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {trades.slice(0, 10).map((trade, idx) => (
-                      <tr key={idx}>
-                        <td>{new Date(trade.entry_time).toLocaleDateString()}</td>
-                        <td>{new Date(trade.exit_time).toLocaleDateString()}</td>
-                        <td>
-                          <span className={trade.side === 'LONG' ? 'badge badge-success' : 'badge badge-danger'}>
-                            {trade.side}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>${trade.entry_price.toFixed(2)}</td>
-                        <td style={{ textAlign: 'right' }}>${trade.exit_price.toFixed(2)}</td>
-                        <td className={trade.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
-                          ${trade.pnl.toFixed(2)}
-                        </td>
-                        <td className={trade.pnl_pct >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
-                          {trade.pnl_pct.toFixed(2)}%
-                        </td>
-                      </tr>
-                    ))}
+                    {trades.slice(0, 10).map((trade, idx) => {
+                      const isBest = tradeStats && trade === tradeStats.bestTrade;
+                      const isWorst = tradeStats && trade === tradeStats.worstTrade;
+                      return (
+                        <tr key={idx} style={isBest ? { background: 'rgba(34, 197, 94, 0.05)' } : isWorst ? { background: 'rgba(239, 68, 68, 0.05)' } : undefined}>
+                          <td>{new Date(trade.entry_time).toLocaleDateString()}</td>
+                          <td>{new Date(trade.exit_time).toLocaleDateString()}</td>
+                          <td>
+                            <span className={trade.side === 'LONG' ? 'badge badge-success' : 'badge badge-danger'}>
+                              {trade.side}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>${trade.entry_price.toFixed(2)}</td>
+                          <td style={{ textAlign: 'right' }}>${trade.exit_price.toFixed(2)}</td>
+                          <td className={trade.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
+                            ${trade.pnl.toFixed(2)}
+                            {isBest && <span style={{ marginLeft: '4px', fontSize: '0.65rem', color: 'var(--color-success-500)' }}>★ Best</span>}
+                            {isWorst && <span style={{ marginLeft: '4px', fontSize: '0.65rem', color: 'var(--color-danger-500)' }}>★ Worst</span>}
+                          </td>
+                          <td className={trade.pnl_pct >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
+                            {trade.pnl_pct.toFixed(2)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
