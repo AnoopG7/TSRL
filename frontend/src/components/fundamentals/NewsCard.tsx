@@ -14,10 +14,15 @@ interface Props {
 }
 
 export function NewsCard({ article }: Props) {
-  const timeAgo = (isoDate: string) => {
-    if (!isoDate) return '';
+  const timeAgo = (rawDate: string) => {
+    if (!rawDate) return '';
     try {
-      const date = new Date(isoDate);
+      // Normalize Alpha Vantage format: '20240415T120000' → '2024-04-15T12:00:00'
+      const normalized = /^\d{8}T\d{6}/.test(rawDate)
+        ? rawDate.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')
+        : rawDate;
+      const date = new Date(normalized);
+      if (isNaN(date.getTime())) return rawDate.slice(0, 8); // Fallback: show YYYYMMDD
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -42,7 +47,7 @@ export function NewsCard({ article }: Props) {
         gap: 'var(--spacing-md)',
         padding: 'var(--spacing-md)',
         borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--color-border)',
+        border: '1px solid var(--color-border-default)',
         textDecoration: 'none',
         color: 'inherit',
         transition: 'all 0.2s ease',
@@ -51,10 +56,10 @@ export function NewsCard({ article }: Props) {
       className="news-card-link"
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent-400)';
-        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-surface-hover)';
+        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-hover)';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)';
+        (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border-default)';
         (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
       }}
     >

@@ -853,11 +853,26 @@ class FundamentalService:
         return []
 
     def _cagr(self, end_val: float, start_val: float, years: int) -> Optional[float]:
-        """Compute Compounded Annual Growth Rate."""
+        """Compute Compounded Annual Growth Rate.
+
+        Handles turnaround cases (negative start) and avoids division by zero.
+        Returns None only when calculation is mathematically undefined.
+        """
         try:
-            if start_val <= 0 or end_val <= 0 or years <= 0:
+            if years <= 0 or start_val == 0:
                 return None
-            return round((end_val / start_val) ** (1 / years) - 1, 4)
+            # Both positive: standard CAGR
+            if start_val > 0 and end_val > 0:
+                return round((end_val / start_val) ** (1 / years) - 1, 4)
+            # Turnaround: negative to positive = strong growth, return a high proxy
+            if start_val < 0 and end_val > 0:
+                return round((abs(end_val - start_val) / abs(start_val)) / years, 4)
+            # Negative to negative: degradation measure
+            if start_val < 0 and end_val < 0:
+                # Improvement = end_val closer to 0 (less negative)
+                return round((abs(start_val) - abs(end_val)) / abs(start_val) / years, 4)
+            # Positive to negative: total decline
+            return None
         except Exception:
             return None
 

@@ -217,11 +217,13 @@ export function useCompareFundamentals() {
   });
 }
 
-export function useInsiders(symbol: string, source: 'yfinance' | 'fmp' = 'yfinance', enabled: boolean = true) {
+export function useInsiders(symbol: string, analysisSource: 'yfinance' | 'fmp' = 'yfinance', enabled: boolean = true) {
+  // Insiders endpoint uses 'finnhub' or 'fmp' — not the same as analysis source
+  const insiderSource = analysisSource === 'fmp' ? 'fmp' : 'finnhub';
   return useQuery({
-    queryKey: ['insiders', symbol, source],
+    queryKey: ['insiders', symbol, insiderSource],
     queryFn: async () => {
-      const { data } = await api.get(`${API_ENDPOINTS.fundamentalsInsiders(symbol)}?source=${source}`);
+      const { data } = await api.get(`${API_ENDPOINTS.fundamentalsInsiders(symbol)}?source=${insiderSource}`);
       return data;
     },
     enabled: enabled && symbol.length > 0,

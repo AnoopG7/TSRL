@@ -107,7 +107,13 @@ export function InsiderTracker({ symbol, source = 'yfinance' }: Props) {
 
   const totalBuys = txs.filter((t: InsiderTransaction) => t.transaction_type === 'P').length;
   const totalSells = txs.filter((t: InsiderTransaction) => t.transaction_type === 'S').length;
-  const sentimentLabel = netSentiment > 0.5 ? 'Strong Buy' : netSentiment > 0 ? 'Buy' : netSentiment < -0.5 ? 'Strong Sell' : netSentiment < 0 ? 'Sell' : 'Neutral';
+  const sentimentLabel = netSentiment == null
+    ? 'N/A'
+    : netSentiment > 0.5 ? 'Strong Buy'
+    : netSentiment > 0 ? 'Buy'
+    : netSentiment < -0.5 ? 'Strong Sell'
+    : netSentiment < 0 ? 'Sell'
+    : 'Neutral';
 
   return (
     <section className="card animate-fadeIn">
@@ -119,10 +125,10 @@ export function InsiderTracker({ symbol, source = 'yfinance' }: Props) {
         <div className="metric-grid" style={{ marginBottom: 'var(--spacing-lg)' }}>
           <MetricCard
             label="Net Buy Value"
-            value={formatCurrency(netBuyValue)}
+            value={netBuyValue != null ? formatCurrency(netBuyValue) : '—'}
             icon={<DollarSign size={16} />}
-            positive={netBuyValue > 0}
-            negative={netBuyValue < 0}
+            positive={netBuyValue != null && netBuyValue > 0}
+            negative={netBuyValue != null && netBuyValue < 0}
           />
           <MetricCard
             label="Total Buys"

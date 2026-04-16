@@ -1,3 +1,6 @@
+import asyncio
+import dataclasses
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -566,10 +569,6 @@ async def compare_fundamentals(
     source: str = Query("yfinance", description="Data source: 'yfinance' or 'fmp'"),
 ):
     """Compare fundamental metrics across multiple stocks side-by-side (concurrent fetch)."""
-    import asyncio
-    import dataclasses
-    from concurrent.futures import ThreadPoolExecutor
-
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if len(symbol_list) < 2:
         raise HTTPException(status_code=400, detail="At least 2 symbols required for comparison")
@@ -594,7 +593,7 @@ async def compare_fundamentals(
                 "pb_ratio": report.pb_ratio,
                 "ps_ratio": report.ps_ratio,
                 "ev_ebitda": report.ev_ebitda,
-                "peg_ratio": getattr(report, "peg_ratio", None),
+                "peg_ratio": report.peg_ratio,
                 "roe": report.roe,
                 "roa": report.roa,
                 "gross_margin": report.gross_margin,
@@ -602,19 +601,19 @@ async def compare_fundamentals(
                 "net_margin": report.net_margin,
                 "debt_to_equity": report.debt_to_equity,
                 "current_ratio": report.current_ratio,
-                "interest_coverage": getattr(report, "interest_coverage", None),
+                "interest_coverage": report.interest_coverage,
                 "free_cash_flow": report.free_cash_flow,
                 "fcf_margin": report.fcf_margin,
                 "revenue_cagr_3yr": report.revenue_cagr_3yr,
-                "earnings_cagr_3yr": getattr(report, "earnings_cagr_3yr", None),
+                "earnings_cagr_3yr": report.earnings_cagr_3yr,
                 "health_score": report.health_score,
                 "health_grade": report.health_grade,
                 "beta": report.beta,
                 "dividend_yield": report.dividend_yield,
                 "analyst_rating": report.analyst_rating,
-                "piotroski_score": getattr(report, "piotroski_score", None),
-                "altman_z_score": getattr(report, "altman_z_score", None),
-                "altman_z_zone": getattr(report, "altman_z_zone", None),
+                "piotroski_score": report.piotroski_score,
+                "altman_z_score": report.altman_z_score,
+                "altman_z_zone": report.altman_z_zone,
             }
         except Exception as e:
             return sym, {"error": str(e)}
@@ -633,8 +632,50 @@ async def compare_fundamentals(
     }
 
 
-# ── Specific routes /{symbol}/news and /{symbol}/insiders MUST come before /{symbol}
-# ── to avoid route shadowing
+# ── /{symbol}/news and /{symbol}/insiders MUST come before /{symbol} to avoid route shadowing ──
+@app.get("/api/v1/fundamentals/{symbol}/news")
+async def get_fundamentals_news(symbol: str):
+    """Get only news and sentiment for a stock (lightweight — does NOT run full analysis)."""
+    from src.infrastructure.data_providers.news_provider import NewsProvider
+
+    try:
+        provider = NewsProvider()
+        news = provider.get_company_news(symbol.upper())
+        sentiment = provider.get_sentiment(symbol.upper())
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "news": news,
+            "sentiment": sentiment,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@app.get("/api/v1/fundamentals/{symbol}/insiders")
+async def get_fundamentals_insiders(
+    symbol: str,
+    source: str = Query("finnhub", description="Data source: 'finnhub' or 'fmp'"),
+):
+    """Get insider trading transactions (Form 4 data) for a stock."""
+    from src.infrastructure.data_providers.insider_provider import InsiderProvider
+
+    try:
+        provider = InsiderProvider(source=source)
+        transactions = provider.get_transactions(symbol.upper())
+        net_sentiment = provider.compute_net_sentiment(transactions)
+        net_buy_value = provider.compute_net_buy_value(transactions)
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "transactions": [t.__dict__ for t in transactions],
+            "net_sentiment": net_sentiment,
+            "net_buy_value": net_buy_value,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
 @app.get("/api/v1/fundamentals/{symbol}")
 async def get_fundamentals(
     symbol: str,
@@ -652,8 +693,6 @@ async def get_fundamentals(
     - In development: Respects use_cache parameter
     - In production: Always fetches fresh (use_cache is ignored)
     """
-    import dataclasses
-
     if source == "fmp" and not os.environ.get("FMP_API_KEY"):
         raise HTTPException(
             status_code=400,
@@ -666,47 +705,6 @@ async def get_fundamentals(
         report = result["report"]
         from_cache = result["from_cache"]
         return {"status": "success", "from_cache": from_cache, **dataclasses.asdict(report)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from None
-
-
-@app.get("/api/v1/fundamentals/{symbol}/news")
-async def get_fundamentals_news(symbol: str):
-    """Get only news and sentiment for a stock (lightweight endpoint)."""
-    try:
-        service = FundamentalService(source="yfinance")
-        result = service.analyze(symbol.upper(), include_news=True, use_cache=False)
-        report = result["report"]
-        return {
-            "status": "success",
-            "symbol": symbol.upper(),
-            "news": report.news,
-            "sentiment": report.sentiment,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from None
-
-
-@app.get("/api/v1/fundamentals/{symbol}/insiders")
-async def get_fundamentals_insiders(
-    symbol: str,
-    source: str = Query("finnhub", description="Data source: 'finnhub' or 'fmp'"),
-):
-    """Get insider trading transactions (Form 4 data) for a stock."""
-    try:
-        from src.infrastructure.data_providers.insider_provider import InsiderProvider
-
-        provider = InsiderProvider(source=source)
-        transactions = provider.get_transactions(symbol.upper())
-        net_sentiment = provider.compute_net_sentiment(transactions)
-        net_buy_value = provider.compute_net_buy_value(transactions)
-        return {
-            "status": "success",
-            "symbol": symbol.upper(),
-            "transactions": [t.__dict__ for t in transactions],
-            "net_sentiment": net_sentiment,
-            "net_buy_value": net_buy_value,
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from None
 

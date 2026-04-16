@@ -483,7 +483,7 @@ export function FundamentalsPage() {
           padding: 'var(--spacing-lg)',
           borderTop: '1px solid var(--color-border-default)',
           fontSize: '0.75rem',
-          color: 'var(--color-text-muted)',
+          color: 'var(--color-text-tertiary)',
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
             <div>
@@ -511,7 +511,7 @@ export function FundamentalsPage() {
               <div>Computed server-side · Recalculated per request</div>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-sm)', paddingTop: 'var(--spacing-sm)', borderTop: '1px solid var(--color-border-subtle, rgba(255,255,255,0.05))' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-sm)', paddingTop: 'var(--spacing-sm)', borderTop: '1px solid var(--color-border-default)' }}>
             <span>
               {report.fetch_timestamp
                 ? `Last updated: ${new Date(report.fetch_timestamp).toLocaleString()}`

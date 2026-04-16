@@ -46,7 +46,7 @@ export function HealthScoreGauge({ score, grade, breakdown }: Props) {
         <div style={{ position: 'relative', width: 160, height: 160 }}>
           <svg width="160" height="160" viewBox="0 0 160 160">
             {/* Background ring */}
-            <circle cx="80" cy="80" r="65" fill="none" stroke="var(--color-border)" strokeWidth="12" />
+            <circle cx="80" cy="80" r="65" fill="none" stroke="var(--color-border-default)" strokeWidth="12" />
             {/* Score arc */}
             <circle
               cx="80" cy="80" r="65" fill="none"
@@ -101,7 +101,7 @@ export function HealthScoreGauge({ score, grade, breakdown }: Props) {
                   </div>
                   <div style={{
                     width: '100%', height: 6, borderRadius: 3,
-                    backgroundColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-border-default)',
                   }}>
                     <div style={{
                       width: `${pScore}%`, height: '100%', borderRadius: 3,
