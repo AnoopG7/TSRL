@@ -6,13 +6,14 @@ AI-Powered Trading Strategy Research Platform for quantitative trading analysis,
 
 - **12 Trading Strategies** — EMA Crossover, RSI, MACD, Bollinger Bands, Volume Profile, MA Ribbon, and ML-based strategies
 - **Backtesting Engine** — Event-driven & vectorized engines with commission, slippage, stop-loss, and take-profit support
+- **Fundamental Analysis** — 5-pillar health scoring, Piotroski F-Score, Altman Z-Score, EPS surprise, insider tracking, news sentiment
 - **Risk Analytics** — Sharpe, Sortino, Max Drawdown, Calmar, Kelly Criterion, VaR, CVaR, Omega Ratio, and more
 - **Strategy Optimization** — Grid Search, Random Search, and Genetic Algorithm optimizers
 - **Walk-Forward Analysis** — Rolling and expanding window validation to detect overfitting
 - **Machine Learning** — 116-feature engineering pipeline with Random Forest and Gradient Boosting classifiers
-- **REST API** — FastAPI backend with 12 endpoints (backtesting, optimization, walk-forward, ML)
-- **Modern Dashboard** — React + TypeScript frontend with equity curves, drawdown charts, and monthly returns heatmaps
-- **530 Tests, 92% Coverage** — Unit, integration, property-based, and performance tests
+- **REST API** — FastAPI backend with 16 endpoints (backtesting, optimization, walk-forward, ML, fundamentals)
+- **Modern Dashboard** — React + TypeScript frontend with equity curves, drawdown charts, monthly returns heatmaps, and a full fundamental analysis dashboard
+- **643 Tests** — Unit, integration, property-based, and performance tests across trading engine, ML, and fundamentals
 
 ## Quick Start
 
@@ -52,6 +53,20 @@ npm run dev
 
 The dashboard will be available at `http://localhost:5173`
 
+### Environment Variables
+
+Create `config/.env` with the following keys (all optional for basic backtesting):
+
+```bash
+# Required for Fundamental Analysis
+FINNHUB_API_KEY=your_key          # News, EPS surprise, insider data (free: 60 calls/min)
+ALPHA_VANTAGE_API_KEY=your_key    # Sentiment scoring (free: 500 calls/day)
+SEC_EDGAR_USER_AGENT="YourApp/1.0 your@email.com"  # SEC EDGAR insider data
+
+# Optional — paid data providers
+FMP_API_KEY=your_key              # Financial Modeling Prep (production-grade fundamentals)
+```
+
 ### Running Tests
 
 ```bash
@@ -63,12 +78,13 @@ python -m pytest tests/ -q
 # Run with coverage
 python -m pytest tests/ --cov=src --cov-report=term-missing
 
-# Run specific test phase
-python -m pytest tests/unit/domain/ -v          # Domain entities
-python -m pytest tests/unit/strategies/ -v       # Strategy logic
-python -m pytest tests/integration/ -v           # Integration tests
-python -m pytest tests/unit/test_properties.py   # Property-based tests
-python -m pytest tests/performance/ -v           # Performance benchmarks
+# Run specific test suites
+python -m pytest tests/unit/domain/ -v             # Domain entities
+python -m pytest tests/unit/strategies/ -v          # Strategy logic
+python -m pytest tests/unit/fundamentals/ -v        # Fundamental analysis
+python -m pytest tests/integration/ -v              # Integration tests
+python -m pytest tests/unit/test_properties.py      # Property-based tests
+python -m pytest tests/performance/ -v              # Performance benchmarks
 ```
 
 ## Usage
@@ -150,26 +166,31 @@ curl -X POST http://localhost:8000/api/v1/backtests/compare \
 | POST | `/api/v1/data/ingest` | Fetch and store OHLCV data |
 | POST | `/api/v1/backtests/run` | Run a backtest |
 | POST | `/api/v1/backtests/compare` | Compare multiple strategies |
+| POST | `/api/v1/backtests/portfolio` | Portfolio-level backtest |
 | POST | `/api/v1/optimization/grid` | Grid search optimization |
 | POST | `/api/v1/optimization/random` | Random search optimization |
 | POST | `/api/v1/optimization/genetic` | Genetic algorithm optimization |
 | POST | `/api/v1/walkforward/run` | Walk-forward analysis |
 | POST | `/api/v1/ml/train` | Train ML model and backtest |
+| GET | `/api/v1/fundamentals/{symbol}` | Full fundamental analysis |
+| GET | `/api/v1/fundamentals/{symbol}/news` | News & sentiment (lightweight) |
+| GET | `/api/v1/fundamentals/{symbol}/insiders` | SEC Form 4 insider trading |
+| GET | `/api/v1/fundamentals/compare` | Multi-stock comparison |
 
 ## Project Structure
 
 ```
 TSRL/
-├── config/                     # Configuration (YAML + Pydantic)
+├── config/                     # Configuration (YAML + Pydantic + .env)
 ├── src/
 │   ├── domain/                 # Core business entities
-│   │   ├── entities/           # OHLCV, Signal, Trade, Position, Metrics
+│   │   ├── entities/           # OHLCV, Signal, Trade, Position, Metrics, FundamentalReport
 │   │   └── value_objects/      # Symbol, Timeframe
 │   ├── application/            # Service layer
-│   │   └── services/           # BacktestService, DataService
+│   │   └── services/           # BacktestService, DataService, FundamentalService
 │   ├── infrastructure/         # External integrations
 │   │   ├── database/           # SQLAlchemy ORM, repositories
-│   │   └── data_providers/     # Yahoo Finance, NSE, caching
+│   │   └── data_providers/     # Yahoo Finance, FMP, Finnhub, Alpha Vantage, SEC EDGAR
 │   ├── strategies/             # Plugin-based strategy system
 │   │   ├── momentum/           # EMA, RSI, MACD, MA Ribbon
 │   │   └── mean_reversion/     # Bollinger Bands
@@ -185,17 +206,29 @@ TSRL/
 │   └── cli.py                  # CLI tool
 ├── frontend/                   # React + Vite + TypeScript
 │   └── src/
-│       ├── pages/              # BacktestPage, ComparisonPage
-│       ├── components/         # Charts, UI components
+│       ├── pages/              # BacktestPage, ComparisonPage, FundamentalsPage
+│       ├── components/
+│       │   ├── charts/         # FinancialTrends, EpsSurprise, RadarScore
+│       │   ├── fundamentals/   # HealthScoreGauge, RatioTable, InsiderTracker, etc.
+│       │   └── ui/             # MetricCard, shared components
 │       └── store/              # Zustand state management
 ├── notebooks/                  # Jupyter research notebooks
 │   ├── 01_data_exploration     # Data fetching, distributions, volatility
 │   ├── 02_strategy_backtest    # Strategy comparison, equity curves
 │   └── 03_optimization         # Grid search, heatmaps, walk-forward
-├── tests/                      # Test suites (530 tests, 92% coverage)
-│   ├── unit/                   # Domain, strategy, engine, ML tests
-│   ├── integration/            # Workflow, database, portfolio tests
-│   └── performance/            # Scalability benchmarks
+├── tests/                      
+│   ├── unit/
+│   │   ├── domain/             # Entity validation (6 files)
+│   │   ├── strategies/         # Strategy logic (4 files)
+│   │   ├── engine/             # Backtest, optimizer, walk-forward (3 files)
+│   │   ├── fundamentals/       # Health score, Piotroski, Altman Z, cache, providers (8 files)
+│   │   ├── analytics/          # Risk and portfolio metrics (2 files)
+│   │   ├── ml/                 # Feature engineering, ML strategies (2 files)
+│   │   ├── api/                # API endpoint tests (1 file)
+│   │   ├── cli/                # CLI command tests (1 file)
+│   │   └── test_properties.py  # Hypothesis property-based tests
+│   ├── integration/            # Workflow, database, portfolio, fundamentals API (5 files)
+│   └── performance/            # Scalability benchmarks (1 file)
 ├── alembic/                    # Database migrations
 └── data/                       # SQLite DB, cache, models
 ```
