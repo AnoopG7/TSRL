@@ -1,3 +1,23 @@
+"""
+Portfolio Engine
+Responsibilities:
+- Multi-symbol portfolio backtesting with capital allocation
+- Position sizing and allocation across multiple strategies
+- Rebalancing logic (daily, weekly, monthly, quarterly)
+- Portfolio-level metrics calculation (correlation, risk contribution)
+- Benchmark comparison (beta, alpha calculation)
+
+Used by:
+- BacktestService (for portfolio backtests)
+- CLI portfolio command
+- API /backtest/portfolio endpoint
+
+Notes:
+- PortfolioConfig extends BacktestConfig with allocation weights
+- PortfolioBacktestEngine handles single-strategy multi-symbol
+- MultiStrategyPortfolioEngine handles multiple strategies
+- RebalanceEvent tracks when and why rebalancing occurred
+"""
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime

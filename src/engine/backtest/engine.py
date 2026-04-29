@@ -1,3 +1,22 @@
+"""
+Backtest Engine
+Responsibilities:
+- Event-driven backtesting simulation (bar-by-bar execution)
+- Vectorized backtesting for fast parameter scans
+- Position tracking (open/close, long/short)
+- Commission and slippage modeling
+- Equity curve and drawdown calculation
+
+Used by:
+- BacktestService (orchestration layer)
+- PortfolioEngine (multi-symbol extension)
+- CLI and API endpoints
+
+Notes:
+- BacktestConfig holds all execution parameters
+- BacktestResult contains trades, equity_curve, and metrics
+- VectorizedBacktestEngine extends for speed-optimized runs
+"""
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict, Any

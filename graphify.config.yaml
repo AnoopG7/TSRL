@@ -1,0 +1,17 @@
+include:
+  - src/**
+  - frontend/src/**
+  - zdocs/**
+
+exclude:
+  - tests/**
+  - notebooks/**
+  - data/**
+  - alembic/**
+  - node_modules/**
+  - .venv/**
+  - htmlcov/**
+  - .pytest_cache/**
+  - .hypothesis/**
+  - config/**
+  - logs/**

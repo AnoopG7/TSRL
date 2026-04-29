@@ -1,206 +1,443 @@
-# CLAUDE.md
+# CLAUDE.md — TSRL Project Context
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 1. Project Identity
 
-## Quick Commands
+**Project Name:** TSRL (Trading Strategy Research Lab)
 
-### Backend Setup & Development
-```bash
-# Create and activate virtual environment
-python3 -m venv .venv && source .venv/bin/activate
+**What it is:** A production-grade quantitative trading research platform combining event-driven backtesting, ML-powered strategies, and fundamental analysis. Built with Clean Architecture and Domain-Driven Design patterns.
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+**Primary Purpose:** Enable systematic trading strategy research, backtesting, and optimization for US/India equities and crypto markets.
 
-# Run API server
-PYTHONPATH=. python src/main.py
+**Target User:** Quantitative researchers, algorithmic traders, and developers building systematic trading strategies.
 
-# Run CLI
-PYTHONPATH=. python -m src.cli --help
-```
+---
 
-### Frontend Setup & Development
-```bash
-cd frontend && npm install
-npm run dev        # Start dev server (port 5173)
-npm run build      # Production build
-npm run lint       # ESLint check
-```
+## 2. Tech Stack
 
-### Testing
-```bash
-# Run all tests
-python -m pytest tests/ -q
+### Backend (Python 3.11+)
 
-# Run with coverage
-python -m pytest tests/ --cov=src --cov-report=term-missing
+| Library | Version | Role |
+|---------|---------|------|
+| fastapi | 0.109.0 | REST API framework |
+| uvicorn | 0.27.0 | ASGI server |
+| pydantic | 2.5.3 | Data validation |
+| sqlalchemy | 2.0.25 | ORM |
+| alembic | 1.13.1 | Database migrations |
+| pandas | >=2.2.0 | Data processing |
+| numpy | >=1.26.3 | Numerical computing |
+| yfinance | 0.2.35 | Yahoo Finance data |
+| nsetools | 1.0.11 | NSE India data |
+| scikit-learn | 1.4.0 | ML pipelines |
+| xgboost | 2.0.3 | Gradient boosting |
+| plotly | 5.18.0 | Visualization |
+| structlog | 24.1.0 | Structured logging |
+| click | 8.1.7 | CLI framework |
+| joblib | 1.3.2 | ML model persistence |
 
-# Run specific test categories
-python -m pytest tests/unit/domain/ -v       # Domain entities
-python -m pytest tests/unit/strategies/ -v   # Strategy logic
-python -m pytest tests/integration/ -v       # Integration tests
-python -m pytest tests/unit/test_properties.py  # Property-based tests
-python -m pytest tests/performance/ -v       # Performance benchmarks
+**Database:** SQLite with SQLAlchemy ORM + Alembic migrations
 
-# Run single test file
-python -m pytest tests/path/to/test_file.py::test_function_name -v
-```
+**Data Providers:**
+- `yahoo_provider.py` — Yahoo Finance (free, US stocks)
+- `nse_provider.py` — NSE India (free, Indian stocks)
+- `alpha_vantage_provider.py` — Alpha Vantage (free tier)
+- `fundamental_provider.py` — FMP + yfinance hybrid (fundamentals)
+- `news_provider.py` — Finnhub (news/sentiment)
+- `insider_provider.py` — Finnhub/FMP (insider trading)
 
-### Linting & Type Checking
-```bash
-# Lint with ruff
-ruff check src/ tests/
+### Frontend
 
-# Type check with mypy
-mypy src/
+| Technology | Role |
+|------------|------|
+| React 19 + TypeScript | UI framework |
+| Vite 7.3 | Build tool |
+| Tailwind CSS v4 | Styling |
+| Zustand | State management |
+| Recharts | Charting |
+| Radix UI | UI primitives |
 
-# Fix auto-fixable lint issues
-ruff check --fix src/
-```
+**Chart Components** (`frontend/src/components/charts/`):
+- `EquityCurveChart.tsx` — Portfolio equity over time
+- `DrawdownChart.tsx` — Drawdown visualization
+- `FinancialTrendsChart.tsx` — Revenue, margins, FCF
+- `EpsSurpriseChart.tsx` — EPS beat/miss history
+- `RadarScoreChart.tsx` — Health score radar
+- `MonthlyReturnsHeatmap.tsx` — Monthly returns heatmap
+- `ParameterSensitivityChart.tsx` — Optimization sensitivity
 
-### CLI Commands
-```bash
-# List strategies
-PYTHONPATH=. python -m src.cli strategies
+**Pages** (`frontend/src/pages/`):
+| Page | Purpose |
+|------|---------|
+| `BacktestPage.tsx` | Single-strategy backtest with charts |
+| `ComparisonPage.tsx` | Multi-strategy comparison |
+| `FundamentalsPage.tsx` — Fundamental analysis (Overview, Financials, Ratios, News, Insiders) |
+| `OptimizationPage.tsx` | Parameter optimization (Grid/Random/Genetic) |
+| `PortfolioPage.tsx` | Multi-symbol portfolio backtest |
+| `WalkForwardPage.tsx` | Walk-forward validation |
 
-# Run backtest
-PYTHONPATH=. python -m src.cli backtest --strategy ema_crossover --symbol AAPL --start-date 2023-01-01 --end-date 2024-01-01
+---
 
-# Optimize parameters
-PYTHONPATH=. python -m src.cli optimize --strategy ema_crossover --symbol AAPL --method grid
-
-# Walk-forward analysis
-PYTHONPATH=. python -m src.cli walkforward --strategy ema_crossover --symbol AAPL
-
-# Fetch OHLCV data
-PYTHONPATH=. python -m src.cli fetch-data --symbol AAPL
-```
-
-## Architecture Overview
-
-### Clean Architecture Layers
+## 3. Architecture (Clean Architecture + DDD)
 
 ```
 Presentation (API/CLI/Frontend)
     ↓
-Application Services (BacktestService, DataService)
+Application Services (BacktestService, DataService, FundamentalService)
     ↓
-Domain Layer (Entities, Value Objects, Events)
+Domain Layer (Entities, Value Objects) — NO external dependencies
     ↓
-Infrastructure (Database, Data Providers, ML)
+Infrastructure (SQLAlchemy, Data Providers, ML)
     ↓
-Data Layer (SQLite, Yahoo Finance, NSE)
+Data Layer (SQLite, Yahoo Finance, NSE, FMP)
 ```
 
-**Key Principle**: Dependencies point inward. Domain layer has no external dependencies.
+### Domain Entities (`src/domain/entities/`)
 
-### Directory Structure
+| Entity | Purpose |
+|--------|---------|
+| `ohlcv.py` | OHLCV price data |
+| `signal.py` | Trading signals (SignalType, SignalStrength) |
+| `trade.py` | Trade records (TradeSide, TradeStatus) |
+| `position.py` | Position tracking (PositionSide) |
+| `metrics.py` | RiskMetrics (50+ metrics) |
+| `portfolio_metrics.py` | PortfolioMetrics (correlation, risk contribution) |
+| `fundamental.py` | FundamentalReport (ratios, health scores) |
+| `rebalance_event.py` | RebalanceEvent for portfolio rebalancing |
 
-```
-TSRL/
-├── src/
-│   ├── domain/           # Core entities (Trade, Position, Signal, OHLCV, Metrics)
-│   ├── application/      # Services (BacktestService, DataService)
-│   ├── infrastructure/   # SQLAlchemy, data providers (Yahoo, NSE, Alpha Vantage)
-│   ├── strategies/       # 12+ strategies with registry pattern
-│   ├── engine/           # Backtest, optimizer, walkforward engines
-│   ├── ml/               # Feature engineering (116 features), RF/GBM classifiers
-│   ├── analytics/        # 50+ risk metrics (Sharpe, Sortino, VaR, CVaR)
-│   ├── main.py           # FastAPI entry point
-│   └── cli.py            # Click CLI
-├── frontend/src/         # React 19 + TypeScript + Zustand + Recharts
-├── tests/                # 486 tests (89% coverage)
-├── config/settings.yaml  # Configuration
-└── data/                 # SQLite DB, cache, models
-```
+**Value Objects:** `Symbol`, `Timeframe` (`src/domain/value_objects/`)
 
-### Key Patterns
+### Application Services (`src/application/services/`)
 
-**Strategy Registry** (`src/strategies/registry.py`):
+| Service | Responsibility |
+|---------|----------------|
+| `backtest_service.py` | Orchestrates: data → strategy → engine → persistence |
+| `data_service.py` | Data fetching, caching, provider selection |
+| `fundamental_service.py` | Fundamental analysis, health scores, ratios |
+
+### Infrastructure (`src/infrastructure/`)
+
+- `data_providers/` — Yahoo, NSE, Alpha Vantage, FMP, Fundamental, News, Insider
+- `database/` — SQLAlchemy ORM, repositories (BacktestRepository, OHLCVRepository)
+- `logging/` — structlog setup
+
+### Engine (`src/engine/`)
+
+| Module | Purpose |
+|--------|---------|
+| `backtest/engine.py` | BacktestEngine, VectorizedBacktestEngine |
+| `backtest/portfolio_engine.py` | PortfolioBacktestEngine, MultiStrategyPortfolioEngine |
+| `optimizer/optimizer.py` | GridSearch, RandomSearch, GeneticAlgorithm |
+| `walkforward/walkforward.py` | WalkForwardAnalysis (rolling/expanding windows) |
+
+### Strategies (`src/strategies/`)
+
+**Families:**
+- `momentum/` — EMA, MACD, RSI, MA Ribbon, Volume
+- `mean_reversion/` — Bollinger Bands
+- `breakout/` — Price/volume breakouts
+- `volatility/` — (placeholder)
+- `ml/` — Random Forest, Gradient Boosting
+
+### Analytics (`src/analytics/`)
+
+- `portfolio_metrics.py` — Correlation matrix, risk contribution
+- `risk_metrics.py` — 50+ metrics (Sharpe, Sortino, VaR, CVaR, Calmar, Kelly, Omega)
+
+### ML (`src/ml/`)
+
+- `feature_engineering/features.py` — 116 features (lag, rolling, technicals, volume)
+- `strategies/ml_strategies.py` — MLRandomForestStrategy, MLGradientBoostingStrategy
+
+### Frontend (`frontend/src/`)
+
+- `pages/` — 6 pages (Backtest, Comparison, Fundamentals, Optimization, Portfolio, WalkForward)
+- `components/` — UI components, chart components
+- `hooks/` — API hooks (apiHooks.ts)
+- `store/` — Zustand stores (useBacktestStore, useDataSourceStore, useThemeStore)
+
+### Notebooks (`notebooks/`)
+
+| Notebook | Purpose |
+|----------|---------|
+| `01_data_exploration.ipynb` | OHLCV data exploration |
+| `02_strategy_backtest.ipynb` | Strategy backtesting |
+| `03_optimization.ipynb` | Parameter optimization |
+
+---
+
+## 4. Strategy Registry
+
+**Location:** `src/strategies/registry.py`
+
+**Pattern:** Decorator-based auto-discovery
+
 ```python
-from src.strategies.registry import register_strategy, StrategyRegistry
+from src.strategies.registry import register_strategy
 
-# Decorator pattern for registering strategies
-@register_strategy("my_strategy")
-class MyStrategy(BaseStrategy):
-    def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame: ...
-    def entry_conditions(self, data: pd.DataFrame, idx: int) -> bool: ...
-    def exit_conditions(self, data: pd.DataFrame, idx: int) -> bool: ...
-
-# Auto-discovery loads strategies from momentum/, breakout/, volatility/, mean_reversion/
-StrategyRegistry.auto_discover()
+@register_strategy("ema_crossover")
+class EMACrossoverStrategy(BaseStrategy):
+    ...
 ```
 
-**Event-Driven Backtesting**: The engine processes bars sequentially, emitting events (SignalEvent, OrderEvent, FillEvent) through a pub/sub model.
+**All Strategies:**
 
-**ML Pipeline**: 116-feature engineering (lag, rolling, technical indicators, volume) → StandardScaler → RandomForest/GradientBoosting classifier.
+| Family | Strategies |
+|--------|------------|
+| **Momentum** | `ema_crossover`, `rsi_mean_reversion`, `macd`, `ma_ribbon`, `triple_ma`, `volume_profile`, `volume_breakout` |
+| **Mean Reversion** | `bollinger_bands`, `bbands` |
+| **Breakout** | `breakout` |
+| **ML** | `ml_random_forest`, `ml_gradient_boosting` |
 
-### Configuration
+**Registry Methods:**
+- `StrategyRegistry.auto_discover()` — Load all @register_strategy decorated classes
+- `StrategyRegistry.get(name)` — Get strategy class by name
+- `StrategyRegistry.list_strategies()` — List all strategy names
+- `StrategyRegistry.get_all_strategy_info()` — Get full strategy metadata
 
-Edit `config/settings.yaml` for:
-- Database path
-- Data provider settings (Yahoo, NSE, Alpha Vantage)
-- Backtest defaults (capital, commission, slippage)
-- Risk parameters
-- ML settings
+---
 
-Pydantic settings class loads from this file automatically.
+## 5. Data Flow
 
-### API Endpoints
+```
+Raw Data → Data Provider → Cache Layer → Domain Entities → Services → Engine → Analytics → API → Frontend
+```
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/health` | GET | Health check |
-| `/api/v1/strategies` | GET | List strategies |
-| `/api/v1/backtests/run` | POST | Run backtest |
-| `/api/v1/backtests/compare` | POST | Compare strategies |
-| `/api/v1/optimization/grid` | POST | Grid search |
-| `/api/v1/optimization/random` | POST | Random search |
-| `/api/v1/optimization/genetic` | POST | Genetic algorithm |
-| `/api/v1/walkforward/run` | POST | Walk-forward analysis |
-| `/api/v1/ml/train` | POST | Train ML model |
-| `/api/v1/data/ingest` | POST | Fetch and store OHLCV |
+**Two Cache Layers:**
+1. `src/infrastructure/data_providers/cache.py` — OHLCV data caching
+2. `src/infrastructure/data_providers/fundamental_cache.py` — Fundamental data caching (JSON, TTL-based)
 
-Full API docs at `http://localhost:8000/docs` when running.
+**Flow:**
+1. `DataService.ingest_and_persist()` fetches OHLCV via provider
+2. Data validated and stored in SQLite via `OHLCVRepository`
+3. `BacktestService.run_backtest()` loads data, creates strategy instance
+4. `BacktestEngine.run()` processes bars, generates signals, executes trades
+5. `RiskMetrics.calculate()` computes performance metrics
+6. `BacktestRepository` persists results
+7. API returns `BacktestResponse` to frontend
 
-### Frontend State Management
+---
 
-Uses Zustand for global state:
-- `useBacktestStore` - Backtest results, trades, metrics
-- `useStrategyStore` - Available strategies, selected strategy
-- State persisted in `frontend/src/store/`
+## 6. Database Schema
 
-### Testing Architecture
+**Tables** (`src/infrastructure/database/models/orm_models.py`):
+- `symbols` — Trading symbols (ticker, exchange, currency)
+- `ohlcv` — Price data (symbol_id, timestamp, O/H/L/C/V)
+- `backtests` — Backtest runs (name, strategy_id, initial_capital, results)
+- `trades` — Individual trades (backtest_id, entry/exit, P&L)
+- `signals` — Generated signals (backtest_id, timestamp, type, strength)
+- `optimization_runs` — Optimization results (params, metrics)
+- `ml_models` — Trained model metadata
+- `walk_forward_results` — Walk-forward analysis results
 
-- **Unit tests** (`tests/unit/`) - Domain entities, strategies, engine components
-- **Integration tests** (`tests/integration/`) - Full backtest workflow, database, API
-- **Property-based tests** (`tests/unit/test_properties.py`) - Hypothesis tests for invariants
-- **Performance tests** (`tests/performance/`) - Benchmarks for large datasets
+**Repositories:**
+- `BacktestRepository` — CRUD for backtest runs
+- `OHLCVRepository` — Price data persistence
+- `TradeRepository` — Trade record persistence
 
-Key test fixtures in `tests/conftest.py` provide sample OHLCV data, strategy instances.
+**Migrations:** `alembic/versions/` — Auto-generated schema migrations
 
-### Available Strategies
+---
 
-Built-in strategies in `src/strategies/`:
-- `ema_crossover`, `rsi_mean_reversion`, `macd`, `ma_ribbon`, `triple_ma`
-- `breakout`, `volume_breakout`, `volume_profile`
-- `bollinger_bands`, `bbands`
-- `ml_random_forest`, `ml_gradient_boosting`
+## 7. API Endpoints
 
-### Database
+### Strategies
+- `GET /api/v1/strategies` — List all strategies
+- `GET /api/v1/strategies/{name}` — Get strategy details
 
-SQLite with SQLAlchemy ORM. Models in `src/infrastructure/database/models/`:
-- `OHLCVModel` - Price data
-- `BacktestModel` - Backtest runs
-- `TradeModel` - Individual trades
-- `SignalModel` - Generated signals
-- `OptimizationRun` - Optimization results
+### Data
+- `POST /api/v1/data/ingest` — Fetch and store OHLCV data
 
-### Important Implementation Details
+### Backtests
+- `GET /api/v1/backtests` — List backtests
+- `POST /api/v1/backtests/run` — Run single backtest
+- `POST /api/v1/backtests/compare` — Compare multiple strategies
+- `POST /api/v1/backtests/portfolio` — Multi-symbol portfolio backtest
 
-1. **PYTHONPATH** must include `.` when running CLI or tests from project root
-2. **Strategy parameters** validated via Pydantic-like Parameter class with min/max bounds
-3. **Commission/slippage** modeled in backtest engine - configurable per backtest
-4. **Walk-forward** uses 252-day train / 63-day test windows by default
-5. **ML models** saved to `data/models/` with joblib
+### Optimization
+- `POST /api/v1/optimization/grid` — Grid search
+- `POST /api/v1/optimization/random` — Random search
+- `POST /api/v1/optimization/genetic` — Genetic algorithm
+
+### Walk-Forward
+- `POST /api/v1/walkforward/run` — Walk-forward analysis
+
+### Fundamentals
+- `GET /api/v1/fundamentals/{symbol}` — Get fundamental analysis
+- `GET /api/v1/fundamentals/compare` — Compare multiple symbols
+- `GET /api/v1/fundamentals/{symbol}/insiders` — Insider trading data
+
+### ML
+- `POST /api/v1/ml/train` — Train ML model
+
+### Health
+- `GET /api/v1/health` — Health check
+
+---
+
+## 8. Current State (from PROGRESS.md)
+
+**Working:**
+- ✅ Full backtest engine (event-driven + vectorized)
+- ✅ Portfolio backtesting (multi-symbol, rebalancing)
+- ✅ 10+ strategies across 4 families
+- ✅ 3 optimizers (Grid, Random, Genetic)
+- ✅ Walk-forward analysis
+- ✅ ML strategies (Random Forest, Gradient Boosting)
+- ✅ 116-feature ML pipeline
+- ✅ Fundamental analysis (health scores, ratios, insider tracking)
+- ✅ 50+ risk metrics
+- ✅ FastAPI with 16+ endpoints
+- ✅ React frontend with 6 pages
+- ✅ Database persistence with Alembic migrations
+- ✅ 486 tests (89% coverage)
+
+**In Progress:**
+- 🔧 Enhanced chart visualizations (crosshair sync, trade markers)
+- 🔧 Fundamental analysis UI enhancements
+
+**Blocked:**
+- ⏸️ Paper trading (awaiting real-time data feed decision)
+
+---
+
+## 9. Active Development Priorities (from NEXT_STEPS.md)
+
+1. **Data validation pipeline** — Forward-fill gaps, corporate actions handling
+2. **Enhanced visualizations** — Monthly returns heatmap, rolling metrics plots
+3. **Paper trading simulator** — Real-time feed, order execution
+4. **Full test coverage** — Target 80%+ across all modules
+5. **API expansion** — More endpoints for trades, equity curves, ML models
+
+---
+
+## 10. Architectural Decisions
+
+| Decision | Why |
+|----------|-----|
+| **Clean Architecture** | Separation of concerns, testability, maintainability |
+| **Domain-Driven Design** | Complex trading logic requires clear entity boundaries |
+| **Zustand over Redux** | Simpler API, less boilerplate, built-in persistence |
+| **SQLite + Alembic** | Simple deployment, upgradeable to PostgreSQL |
+| **yfinance + NSE dual** | Free data sources for US and Indian markets |
+| **Event-driven backtesting** | Realistic simulation of bar-by-bar execution |
+| **Strategy registry pattern** | Plugin architecture for easy strategy addition |
+| **116 ML features** | Comprehensive feature set for ML strategies |
+
+---
+
+## 11. Coding Standards
+
+**Python:**
+- Sync (not async) for business logic, async for API endpoints
+- Type hints throughout (mypy enforced)
+- Pydantic for data validation, dataclasses for config/result objects
+- structlog for all logging (no print statements)
+- ruff for linting, mypy for type checking
+
+**Frontend:**
+- Functional components only (no class components)
+- Named exports (not default exports)
+- TypeScript strict mode
+- Zustand for state (no Redux)
+- Recharts for all charts
+
+**Testing:**
+- Unit tests: `tests/unit/` — Domain, strategies, engine, analytics
+- Integration tests: `tests/integration/` — Full workflows, API
+- Property-based: `tests/unit/test_properties.py` — Hypothesis tests
+- Performance: `tests/performance/` — Benchmarks
+
+**File Naming:**
+- Python: `snake_case.py` (modules), `PascalCase` (classes)
+- TypeScript: `PascalCase.tsx` (components), `camelCase.ts` (utils)
+- Tests: `test_*.py`
+
+---
+
+## 12. Graphify Integration
+
+**Purpose:** Reduce token usage by extracting code structure into a queryable graph.
+
+**Commands:**
+```bash
+# Build/rebuild the graph
+graphify update .
+
+# Query the graph
+graphify query "Where is portfolio execution handled?"
+graphify query "Which files implement momentum strategies?"
+graphify query "How does data flow through the system?"
+
+# Get shortest path between concepts
+graphify path "BacktestConfig" "PortfolioMetrics"
+
+# Explain a node and its neighbors
+graphify explain "BaseStrategy"
+```
+
+**Output:** `graphify-out/`
+- `graph.json` — Full graph structure (2080 nodes, 6385 edges)
+- `GRAPH_REPORT.md` — Analysis report with god nodes, communities
+- `graph.html` — Interactive visual exploration
+
+**God Nodes** (most connected):
+1. `BacktestConfig` (187 edges)
+2. `BaseStrategy` (179 edges)
+3. `BacktestEngine` (116 edges)
+4. `FundamentalReport` (108 edges)
+5. `FundamentalService` (101 edges)
+
+**Workflow:**
+1. **Start of session:** `graphify query "what did we work on last?"`
+2. **During coding:** Query for context instead of reading files
+3. **After changes:** `graphify update .` to refresh
+
+---
+
+## 13. Do NOT Do (Hard Rules)
+
+- ❌ Do not use `print()` for logging — use `src/infrastructure/logging/setup.py`
+- ❌ Do not add new data providers without implementing `base.py` interface
+- ❌ Do not create strategies without registering in `registry.py`
+- ❌ Do not modify domain entities without updating tests in `tests/unit/domain/`
+- ❌ Do not touch `alembic/versions/` manually — use `alembic revision` commands
+- ❌ Do not install frontend packages without checking existing components
+- ❌ Do not hardcode symbols — use `domain/value_objects/symbol.py`
+- ❌ Do not modify business logic without understanding the layer boundaries
+- ❌ Do not skip Graphify updates after significant code changes
+
+---
+
+## Quick Commands
+
+### Backend
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+PYTHONPATH=. python src/main.py          # API server
+PYTHONPATH=. python -m src.cli --help    # CLI
+```
+
+### Frontend
+```bash
+cd frontend && npm install
+npm run dev       # Dev server (port 5173)
+npm run build     # Production build
+```
+
+### Testing
+```bash
+python -m pytest tests/ -q                    # All tests
+python -m pytest tests/ --cov=src             # With coverage
+python -m pytest tests/unit/strategies/ -v    # Strategy tests
+```
+
+### Linting
+```bash
+ruff check src/ tests/       # Lint
+mypy src/                    # Type check
+ruff check --fix src/        # Auto-fix
+```
+
+---
+
+*Last Updated: 2026-04-29*

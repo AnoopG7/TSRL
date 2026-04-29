@@ -1,3 +1,21 @@
+"""
+Backtest Service
+Responsibilities:
+- Orchestrates full backtest workflow: data fetch → strategy → engine → persistence
+- Converts BacktestResult to API-ready BacktestResponse
+- Handles database persistence via BacktestRepository and TradeRepository
+- Extracts equity curve, drawdown series, monthly returns for frontend
+
+Used by:
+- FastAPI endpoints (POST /api/v1/backtests/run)
+- CLI backtest command
+- Comparison and optimization services
+
+Notes:
+- BacktestResponse is JSON-serializable (unlike BacktestResult)
+- Uses DataService for OHLCV fetching with caching
+- Session factory pattern for database transactions
+"""
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime

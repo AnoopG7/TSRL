@@ -1,3 +1,22 @@
+"""
+Base Strategy
+Responsibilities:
+- Abstract base class for all trading strategies
+- Defines StrategyParameter dataclass for type-safe parameters
+- Provides RiskManagementResult for stop-loss, take-profit, position sizing
+- Enforces interface: name, version, description, parameters, generate_signals()
+- Provides hooks: entry_conditions(), exit_conditions(), risk_management()
+
+Used by:
+- All strategy implementations (momentum, mean reversion, breakout, ML)
+- StrategyRegistry for auto-discovery
+- BacktestEngine for signal generation
+
+Notes:
+- Every strategy must implement generate_signals(), entry_conditions(), exit_conditions()
+- Parameters are validated against min/max bounds
+- Risk management is optional but recommended for production strategies
+"""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
