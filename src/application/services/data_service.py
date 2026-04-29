@@ -22,10 +22,18 @@ class DataService:
         end_date: datetime,
         timeframe: str = "1d",
         source: str = "yahoo",
+        market: str = "us",
     ) -> tuple[pd.DataFrame, str, dict]:
         """
         Fetch market data. Returns (dataframe, data_source_label, quality_metadata).
-        Raises an error if the provider fails.
+
+        Args:
+            symbol: Stock symbol (e.g., "RELIANCE", "AAPL", "BTC-USD")
+            start_date: Start date for data
+            end_date: End date for data
+            timeframe: Data timeframe (1d, 1h, etc.)
+            source: Data source (yahoo, alpha_vantage)
+            market: Market type - "us", "india", or "crypto"
 
         Metadata includes:
         - is_simulated: bool - True if using generated/simulated data
@@ -33,6 +41,25 @@ class DataService:
         - original_exception: str - The exception that triggered fallback (if any)
         """
         try:
+            # Add market-specific suffix based on market selection
+            if market == "india":
+                # Indian NSE stocks need .NS suffix for Yahoo
+                base_symbol = (
+                    symbol.upper()
+                    .replace(".NS", "")
+                    .replace(".BO", "")
+                    .replace("NSE:", "")
+                    .replace("BSE:", "")
+                )
+                symbol = base_symbol + ".NS"
+            elif market == "crypto":
+                # Crypto needs -USD suffix for Yahoo (e.g., BTC-USD)
+                base = symbol.upper().replace("-USD", "").replace("-USD", "")
+                if not base.endswith("-USD"):
+                    symbol = base + "-USD"
+            # US market: use symbol as-is
+
+            # Default providers for non-Indian symbols
             if source == "yahoo":
                 provider = YahooFinanceProvider()
             elif source == "alpha_vantage":
@@ -47,9 +74,11 @@ class DataService:
                 end_date=end_date,
                 timeframe=timeframe,
             )
-            logger.info(f"Fetched {len(df)} rows of live data for {symbol}")
+            logger.info(f"Fetched {len(df)} rows for {symbol}")
+            data_source = "live" if source != "alpha_vantage" else source
             return (
-                df, "live",
+                df,
+                data_source,
                 {
                     "is_simulated": False,
                     "warning_message": None,
@@ -69,13 +98,16 @@ class DataService:
         end_date: datetime,
         timeframe: str = "1d",
         source: str = "yahoo",
+        market: str = "us",
         session=None,
     ) -> dict:
         """Fetch data and persist to database.
 
         Returns metadata including data quality flags.
         """
-        df, data_source, quality = self.fetch_data(symbol, start_date, end_date, timeframe, source)
+        df, data_source, quality = self.fetch_data(
+            symbol, start_date, end_date, timeframe, source, market
+        )
 
         repo = OHLCVRepository(session=session)
         records_added = repo.save_ohlcv(symbol, timeframe, df, source=data_source)

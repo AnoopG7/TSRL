@@ -1,18 +1,39 @@
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import type { FundamentalComparison } from '../../lib/schemas/fundamental.schema';
+import { useDataSourceStore } from '../../store/useDataSourceStore';
 
 interface Props {
   data: FundamentalComparison;
   onRemoveTicker: (symbol: string) => void;
+  market?: 'us' | 'india' | 'crypto';
 }
 
-export function ComparisonTable({ data, onRemoveTicker }: Props) {
+type MetricType = 'currency' | 'compact_currency' | 'percent' | 'ratio' | 'score';
+
+export function ComparisonTable({ data, onRemoveTicker, market = 'us' }: Props) {
+  const { getCurrency } = useDataSourceStore();
+  const currency = market === 'us' ? getCurrency() : { symbol: market === 'india' ? '₹' : '$', code: market === 'india' ? 'INR' : 'USD', position: 'prefix' as const };
+  const formatValue = (val: unknown, type: MetricType): string => {
+    if (val == null) return '—';
+    const numVal = Number(val);
+    if (Number.isNaN(numVal)) return String(val);
+    if (type === 'currency') return `${currency.symbol}${numVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (type === 'compact_currency') {
+      if (numVal >= 1e12) return `${currency.symbol}${(numVal / 1e12).toFixed(2)}T`;
+      if (numVal >= 1e9) return `${currency.symbol}${(numVal / 1e9).toFixed(2)}B`;
+      if (numVal >= 1e6) return `${currency.symbol}${(numVal / 1e6).toFixed(2)}M`;
+      return `${currency.symbol}${numVal.toLocaleString()}`;
+    }
+    if (type === 'percent') return `${(numVal * 100).toFixed(2)}%`;
+    if (type === 'ratio') return numVal.toFixed(2);
+    if (type === 'score') return `${numVal.toFixed(0)}/100`;
+    return String(val);
+  };
+
   if (!data || !data.symbols || data.symbols.length === 0) return null;
 
   const symbols = data.symbols;
   
-  type MetricType = 'currency' | 'compact_currency' | 'percent' | 'ratio' | 'score';
-
   const metrics = [
     { key: 'current_price', label: 'Price', type: 'currency' as MetricType },
     { key: 'market_cap', label: 'Market Cap', type: 'compact_currency' as MetricType },
@@ -24,23 +45,6 @@ export function ComparisonTable({ data, onRemoveTicker }: Props) {
     { key: 'revenue_cagr_3yr', label: 'Rev Growth (3y)', type: 'percent' as MetricType },
     { key: 'health_score', label: 'Health Score', type: 'score' as MetricType },
   ];
-
-  const formatValue = (val: unknown, type: MetricType): string => {
-    if (val == null) return '—';
-    const numVal = Number(val);
-    if (Number.isNaN(numVal)) return String(val);
-    if (type === 'currency') return `$${numVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (type === 'compact_currency') {
-      if (numVal >= 1e12) return `$${(numVal / 1e12).toFixed(2)}T`;
-      if (numVal >= 1e9) return `$${(numVal / 1e9).toFixed(2)}B`;
-      if (numVal >= 1e6) return `$${(numVal / 1e6).toFixed(2)}M`;
-      return `$${numVal.toLocaleString()}`;
-    }
-    if (type === 'percent') return `${(numVal * 100).toFixed(2)}%`;
-    if (type === 'ratio') return numVal.toFixed(2);
-    if (type === 'score') return `${numVal.toFixed(0)}/100`;
-    return String(val);
-  };
 
   const getCellColor = (val: unknown, allVals: unknown[], invertColor?: boolean): string => {
     if (val == null) return 'inherit';

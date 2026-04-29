@@ -75,7 +75,7 @@ export function FinancialTrendsChart({
                           <div key={`item-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {isRevenue ? (
                               <div style={{ width: '12px', height: '12px', backgroundColor: 'var(--color-text-primary)', opacity: 0.15, borderRadius: '2px' }} />
-                            ) : entry.type === 'line' || entry.type === 'monotone' ? (
+                            ) : typeof entry.type === 'string' && entry.type.includes('line') ? (
                               <div style={{ display: 'flex', alignItems: 'center' }}>
                                 <div style={{ width: '12px', height: '2px', backgroundColor: entry.color, position: 'absolute' }} />
                                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: entry.color, zIndex: 1, marginLeft: '3px' }} />

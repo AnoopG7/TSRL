@@ -1,8 +1,10 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import type { FundamentalReport } from '../../lib/schemas/fundamental.schema';
+import { useDataSourceStore } from '../../store/useDataSourceStore';
 
 interface Props {
   history: FundamentalReport['eps_surprise_history'];
+  market?: 'us' | 'india' | 'crypto';
 }
 
 interface EpsData {
@@ -17,9 +19,10 @@ interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ payload: EpsData }>;
   label?: string;
+  currency: { symbol: string };
 }
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, label, currency }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const isBeat = data.surprise >= 0;
@@ -30,12 +33,12 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-label">Estimate</span>
-          <span className="chart-tooltip-value">${data.estimate.toFixed(2)}</span>
+          <span className="chart-tooltip-value">{currency.symbol}{data.estimate.toFixed(2)}</span>
         </div>
 
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-label">Actual Reported</span>
-          <span className="chart-tooltip-value">${data.actual.toFixed(2)}</span>
+          <span className="chart-tooltip-value">{currency.symbol}{data.actual.toFixed(2)}</span>
         </div>
 
         <div className="chart-tooltip-divider" />
@@ -52,7 +55,10 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
-export function EpsSurpriseChart({ history }: Props) {
+export function EpsSurpriseChart({ history, market = 'us' }: Props) {
+  const { getCurrency } = useDataSourceStore();
+  const currency = market === 'us' ? getCurrency() : { symbol: market === 'india' ? '₹' : '$', code: market === 'india' ? 'INR' : 'USD', position: 'prefix' as const };
+
   if (!history || history.length === 0) {
     return (
       <section className="card">
@@ -92,9 +98,9 @@ export function EpsSurpriseChart({ history }: Props) {
                 tick={{ fill: 'var(--color-text-secondary)', fontSize: 12 }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(val) => `$${val}`}
+                tickFormatter={(val) => `${currency.symbol}${val}`}
               />
-              <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-bg-hover)' }} />
+              <RechartsTooltip content={<CustomTooltip currency={currency} />} cursor={{ fill: 'var(--color-bg-hover)' }} />
               <ReferenceLine y={0} stroke="var(--color-border-default)" />
               
               <Bar dataKey="estimate" fill="var(--color-text-primary)" fillOpacity={0.15} radius={[2, 2, 0, 0]} name="Estimate" />

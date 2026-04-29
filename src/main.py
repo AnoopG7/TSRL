@@ -88,6 +88,7 @@ class BacktestRequest(BaseModel):
     commission: float = 0.001
     slippage: float = 0.0005
     parameters: Optional[dict] = None
+    market: str = "us"  # "us", "india", "crypto"
 
 
 class CompareRequest(BaseModel):
@@ -99,6 +100,7 @@ class CompareRequest(BaseModel):
     initial_capital: float = 100000.0
     commission: float = 0.001
     slippage: float = 0.0005
+    market: str = "us"
 
 
 class OptimizationRequest(BaseModel):
@@ -113,6 +115,7 @@ class OptimizationRequest(BaseModel):
     slippage: float = 0.0005
     metric: str = "sharpe_ratio"
     n_iterations: int = 100
+    market: str = "us"
 
 
 class WalkForwardRequest(BaseModel):
@@ -127,6 +130,7 @@ class WalkForwardRequest(BaseModel):
     initial_capital: float = 100000.0
     commission: float = 0.001
     slippage: float = 0.0005
+    market: str = "us"
 
 
 class MLTrainRequest(BaseModel):
@@ -137,6 +141,7 @@ class MLTrainRequest(BaseModel):
     timeframe: str = "1d"
     initial_capital: float = 100000.0
     parameters: Optional[dict] = None
+    market: str = "us"
 
 
 class PortfolioBacktestRequest(BaseModel):
@@ -153,6 +158,7 @@ class PortfolioBacktestRequest(BaseModel):
     rebalance_threshold: Optional[float] = None
     benchmark_symbol: Optional[str] = None
     parameters: Optional[dict] = None
+    market: str = "us"
 
 
 # ==================== Endpoints ====================
@@ -239,6 +245,7 @@ async def run_backtest(request: BacktestRequest):
             commission=request.commission,
             slippage=request.slippage,
             parameters=request.parameters,
+            market=request.market,
         )
         return {
             "status": "success",
@@ -680,6 +687,7 @@ async def get_fundamentals_insiders(
 async def get_fundamentals(
     symbol: str,
     source: str = Query("yfinance", description="Data source: 'yfinance' (free) or 'fmp' (paid)"),
+    market: str = Query("us", description="Market: 'us', 'india', or 'crypto'"),
     include_news: bool = Query(True, description="Include news and sentiment data"),
     use_cache: bool = Query(True, description="Use cache (bypassed in production)"),
 ):
@@ -701,13 +709,14 @@ async def get_fundamentals(
 
     try:
         service = FundamentalService(source=source)
-        result = service.analyze(symbol.upper(), include_news=include_news, use_cache=use_cache)
+        result = service.analyze(
+            symbol.upper(), include_news=include_news, use_cache=use_cache, market=market
+        )
         report = result["report"]
         from_cache = result["from_cache"]
         return {"status": "success", "from_cache": from_cache, **dataclasses.asdict(report)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from None
-
 
 
 @app.get("/api/v1/health")

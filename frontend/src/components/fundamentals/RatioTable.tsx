@@ -1,7 +1,9 @@
 import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { useDataSourceStore } from '../../store/useDataSourceStore';
 
 interface Props {
   report: Record<string, unknown>;
+  market?: 'us' | 'india' | 'crypto';
 }
 
 interface RatioRow {
@@ -45,8 +47,19 @@ const StatusIcon = ({ status }: { status: string }) => {
   return <span style={{ width: 14, height: 14, display: 'inline-block' }} />;
 };
 
-export function RatioTable({ report }: Props) {
+export function RatioTable({ report, market = 'us' }: Props) {
+  const { getCurrency } = useDataSourceStore();
   const r = report as Record<string, number | null | undefined | string>;
+  
+  const currency = market === 'us' ? getCurrency() : { symbol: market === 'india' ? '₹' : '$', code: market === 'india' ? 'INR' : 'USD', position: 'prefix' as const };
+  const formatCashFlow = (v: number | null | undefined) => {
+    if (v == null) return '—';
+    const val = (v as number) / 1e9;
+    const suffix = Math.abs(val) >= 1e12 ? 'T' : 'B';
+    const num = Math.abs(val) >= 1e12 ? val / 1e9 : val;
+    const sign = val < 0 ? '-' : '';
+    return `${sign}${currency.symbol}${Math.abs(num).toFixed(2)}${suffix}`;
+  };
 
   const sections: { title: string; rows: RatioRow[] }[] = [
     {
@@ -88,7 +101,7 @@ export function RatioTable({ report }: Props) {
     {
       title: 'Cash Flow',
       rows: [
-        { label: 'Free Cash Flow', value: r.free_cash_flow != null ? `$${((r.free_cash_flow as number) / 1e9).toFixed(2)}B` : '—', status: getStatus(r.free_cash_flow as number, 0, -1e8), interpretation: 'Positive = generating real cash' },
+        { label: 'Free Cash Flow', value: formatCashFlow(r.free_cash_flow as number), status: getStatus(r.free_cash_flow as number, 0, -1e8), interpretation: 'Positive = generating real cash' },
         { label: 'FCF Margin', value: formatPct(r.fcf_margin as number), status: getStatus(r.fcf_margin as number, 0.1, 0.05), interpretation: '> 10% excellent quality' },
         { label: 'FCF Yield', value: formatPct(r.fcf_yield as number), status: getStatus(r.fcf_yield as number, 0.05, 0.02), interpretation: 'High = potentially undervalued' },
         { label: 'Cash Conversion', value: formatRatio(r.cash_conversion as number), status: getStatus(r.cash_conversion as number, 1.0, 0.7), interpretation: '> 1.0 = earnings backed by cash' },

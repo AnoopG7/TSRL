@@ -63,7 +63,7 @@ export function useStrategies() {
 }
 
 export function useRunBacktest() {
-  const source = useDataSourceStore((state) => state.source);
+  const { source, market } = useDataSourceStore();
   return useMutation<BacktestResponse, Error, BacktestConfig>({
     mutationFn: async (config) => {
       const { data } = await api.post(API_ENDPOINTS.backtestRun, {
@@ -71,6 +71,7 @@ export function useRunBacktest() {
         commission: DEFAULT_COMMISSION,
         slippage: DEFAULT_SLIPPAGE,
         source,
+        market,
       });
       return data;
     },
@@ -78,7 +79,7 @@ export function useRunBacktest() {
 }
 
 export function useCompareStrategies() {
-  const source = useDataSourceStore((state) => state.source);
+  const { source, market } = useDataSourceStore();
   return useMutation<ComparisonResult, Error, { strategyNames: string[]; config: ComparisonConfig }>({
     mutationFn: async ({ strategyNames, config }) => {
       const { data } = await api.post(API_ENDPOINTS.backtestCompare, {
@@ -87,6 +88,7 @@ export function useCompareStrategies() {
         commission: DEFAULT_COMMISSION,
         slippage: DEFAULT_SLIPPAGE,
         source,
+        market,
       });
       return data;
     },
@@ -94,7 +96,7 @@ export function useCompareStrategies() {
 }
 
 export function useRunPortfolioBacktest() {
-  const source = useDataSourceStore((state) => state.source);
+  const { source, market } = useDataSourceStore();
   return useMutation<PortfolioResult, Error, PortfolioConfig>({
     mutationFn: async (config) => {
       const symbolList = parseCommaSeparated(config.symbols);
@@ -127,6 +129,7 @@ export function useRunPortfolioBacktest() {
         commission: DEFAULT_COMMISSION,
         slippage: DEFAULT_SLIPPAGE,
         source,
+        market,
       });
       return data;
     },
@@ -148,7 +151,7 @@ interface OptimizationInput {
 }
 
 export function useRunOptimization() {
-  const source = useDataSourceStore((state) => state.source);
+  const { source, market } = useDataSourceStore();
   return useMutation<OptimizationResult, Error, OptimizationInput>({
     mutationFn: async ({ method, config }) => {
       const payload: Record<string, unknown> = {
@@ -156,6 +159,7 @@ export function useRunOptimization() {
         commission: DEFAULT_COMMISSION,
         slippage: DEFAULT_SLIPPAGE,
         source,
+        market,
       };
       if (config.n_iterations !== undefined) {
         payload.n_iterations = config.n_iterations;
@@ -178,7 +182,7 @@ interface WalkForwardInput {
 }
 
 export function useRunWalkForward() {
-  const source = useDataSourceStore((state) => state.source);
+  const { source, market } = useDataSourceStore();
   return useMutation<WalkForwardResult, Error, WalkForwardInput>({
     mutationFn: async (config) => {
       const { data } = await api.post(API_ENDPOINTS.walkforward, {
@@ -186,6 +190,7 @@ export function useRunWalkForward() {
         commission: DEFAULT_COMMISSION,
         slippage: DEFAULT_SLIPPAGE,
         source,
+        market,
       });
       return data;
     },
@@ -195,10 +200,11 @@ export function useRunWalkForward() {
 // ── Fundamental Analysis Hooks ─────────────────────────────────────────
 
 export function useFundamentals(symbol: string, source: 'yfinance' | 'fmp' = 'yfinance', enabled: boolean = true, useCache: boolean = true) {
+  const { market } = useDataSourceStore();
   return useQuery<FundamentalReport & { from_cache?: boolean }>({
-    queryKey: [...QUERY_KEYS.fundamentals(symbol), source],
+    queryKey: [...QUERY_KEYS.fundamentals(symbol), source, market],
     queryFn: async () => {
-      const { data } = await api.get(`${API_ENDPOINTS.fundamentals(symbol)}?source=${source}&use_cache=${useCache}`);
+      const { data } = await api.get(`${API_ENDPOINTS.fundamentals(symbol)}?source=${source}&use_cache=${useCache}&market=${market}`);
       return data;
     },
     enabled: enabled && symbol.length > 0,

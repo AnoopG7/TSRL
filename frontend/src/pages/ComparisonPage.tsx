@@ -11,6 +11,7 @@ import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { SkeletonChart } from '../components/ui/SkeletonChart';
 import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useCompareStrategies } from '../hooks/apiHooks';
+import { formatLargeCurrency } from '../lib/utils';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
 const ComparisonFormSchema = z.object({
@@ -201,7 +202,7 @@ export const ComparisonPage: React.FC = () => {
                       <td className={r.total_return >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
                         {(r.total_return * 100).toFixed(2)}%
                       </td>
-                      <td style={{ textAlign: 'right' }}>${r.final_capital.toLocaleString()}</td>
+                      <td style={{ textAlign: 'right' }}>{formatLargeCurrency(r.final_capital)}</td>
                       <td className={r.metrics.sharpe_ratio >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right' }}>
                         {r.metrics.sharpe_ratio.toFixed(2)}
                       </td>

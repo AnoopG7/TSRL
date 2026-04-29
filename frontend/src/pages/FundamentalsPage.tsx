@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useFundamentals, useCompareFundamentals } from '../hooks/apiHooks';
+import { useDataSourceStore } from '../store/useDataSourceStore';
+import { formatCurrency, formatLargeCurrency } from '../lib/utils';
 import { MetricCard } from '../components/ui/MetricCard';
 import { FinancialTrendsChart } from '../components/charts/FinancialTrendsChart';
 import { RadarScoreChart } from '../components/charts/RadarScoreChart';
@@ -29,6 +31,7 @@ export function FundamentalsPage() {
   const [source, setSource] = useState<'yfinance' | 'fmp'>('yfinance');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
+  const { market } = useDataSourceStore();
   
   // Single Stock Mode
   const { data, isLoading: singleLoading, error: singleError, refetch } = useFundamentals(symbol, source, !symbol.includes(','), true);
@@ -92,16 +95,6 @@ export function FundamentalsPage() {
 
   const report = data as FundamentalReport | undefined;
   const comparisonData = compareData as FundamentalComparison | undefined;
-
-  const formatCurrency = (value: number | null | undefined, compact = false) => {
-    if (value == null) return '—';
-    if (compact) {
-      if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-      if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-      if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-    }
-    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
 
   const formatPct = (value: number | null | undefined) => {
     if (value == null) return '—';
@@ -223,7 +216,7 @@ export function FundamentalsPage() {
 
       {/* Comparison Results */}
       {isCompareMode && !isLoading && comparisonData && (
-        <ComparisonTable data={comparisonData} onRemoveTicker={handleRemoveTicker} />
+        <ComparisonTable data={comparisonData} onRemoveTicker={handleRemoveTicker} market={market} />
       )}
 
       {/* Single Results */}
@@ -265,7 +258,7 @@ export function FundamentalsPage() {
                     {formatCurrency(report.current_price)}
                   </div>
                   <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                    Mkt Cap: {formatCurrency(report.market_cap, true)}
+                    Mkt Cap: {formatLargeCurrency(report.market_cap)}
                   </div>
                 </div>
               </div>
@@ -374,7 +367,7 @@ export function FundamentalsPage() {
                   operatingMargin={report.annual_operating_margin || []}
                   companyName={report.company_name}
                 />
-                <EpsSurpriseChart history={report.eps_surprise_history || []} />
+                <EpsSurpriseChart history={report.eps_surprise_history || []} market={market} />
               </div>
             </div>
           )}
@@ -385,7 +378,7 @@ export function FundamentalsPage() {
                 <RadarScoreChart breakdown={report.score_breakdown} />
                 <HealthScoreGauge score={report.health_score} grade={report.health_grade} breakdown={report.score_breakdown} />
               </div>
-              <RatioTable report={report} />
+              <RatioTable report={report} market={market} />
             </div>
           )}
 
@@ -455,7 +448,7 @@ export function FundamentalsPage() {
 
           {activeTab === 'insiders' && (
             <div className="animate-fadeIn">
-              <InsiderTracker symbol={report.symbol} source={source} />
+              <InsiderTracker symbol={report.symbol} source={source} market={market} />
             </div>
           )}
         </>

@@ -1,5 +1,6 @@
 import { useInsiders } from '../../hooks/apiHooks';
 import { MetricCard } from '../ui/MetricCard';
+import { useDataSourceStore } from '../../store/useDataSourceStore';
 import { DollarSign, AlertTriangle, ShieldCheck, HandHeart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
@@ -23,6 +24,7 @@ interface InsidersData {
 interface Props {
   symbol: string;
   source?: 'yfinance' | 'fmp';
+  market?: 'us' | 'india' | 'crypto';
 }
 
 interface TooltipPayload {
@@ -33,9 +35,10 @@ interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
   label?: string;
+  currency: { symbol: string };
 }
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, label, currency }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     if (!data) return null;
@@ -44,11 +47,11 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
         <div className="chart-tooltip-header">{label}</div>
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-label">Buy</span>
-          <span className="chart-tooltip-value positive">${data.buy.toLocaleString()}</span>
+          <span className="chart-tooltip-value positive">{currency.symbol}{data.buy.toLocaleString()}</span>
         </div>
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-label">Sell</span>
-          <span className="chart-tooltip-value negative">${data.sell.toLocaleString()}</span>
+          <span className="chart-tooltip-value negative">{currency.symbol}{data.sell.toLocaleString()}</span>
         </div>
       </div>
     );
@@ -56,8 +59,10 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   return null;
 };
 
-export function InsiderTracker({ symbol, source = 'yfinance' }: Props) {
+export function InsiderTracker({ symbol, source = 'yfinance', market = 'us' }: Props) {
   const { data, isLoading, error } = useInsiders(symbol, source);
+  const { getCurrency } = useDataSourceStore();
+  const currency = market === 'us' ? getCurrency() : { symbol: market === 'india' ? '₹' : '$', code: market === 'india' ? 'INR' : 'USD', position: 'prefix' as const };
 
   if (isLoading) {
     return (
@@ -84,8 +89,10 @@ export function InsiderTracker({ symbol, source = 'yfinance' }: Props) {
   const netBuyValue = (data as InsidersData).net_buy_value;
 
   const formatCurrency = (val: number): string => {
-    return `$${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    return `${currency.symbol}${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
+
+  const formatK = (v: number) => `${currency.symbol}${(v/1000).toFixed(0)}k`;
 
   const timelineData: { month: string; buy: number; sell: number }[] = [];
   const monthMap: Record<string, { month: string; buy: number; sell: number }> = {};
@@ -157,8 +164,8 @@ export function InsiderTracker({ symbol, source = 'yfinance' }: Props) {
               <BarChart data={timelineData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border-default)" />
                 <XAxis dataKey="month" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} tickLine={false} />
-                <YAxis tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} tickLine={false} tickFormatter={(v) => `$${v/1000}k`} />
-                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-bg-hover)' }} />
+                <YAxis tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} tickLine={false} tickFormatter={formatK} />
+                <RechartsTooltip content={<CustomTooltip currency={currency} />} cursor={{ fill: 'var(--color-bg-hover)' }} />
                 <Bar dataKey="buy" stackId="a" fill="var(--color-positive)" radius={[2, 2, 0, 0]} name="Buy" />
                 <Bar dataKey="sell" stackId="a" fill="var(--color-negative)" radius={[2, 2, 0, 0]} name="Sell" />
               </BarChart>

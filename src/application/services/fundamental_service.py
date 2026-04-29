@@ -48,19 +48,27 @@ class FundamentalService:
         symbol: str,
         include_news: bool = True,
         use_cache: bool = True,
+        market: str = "us",
     ) -> dict:
         """Run complete fundamental analysis for a stock.
 
         Args:
-            symbol: Stock ticker (e.g. "AAPL", "MSFT")
+            symbol: Stock ticker (e.g. "AAPL", "MSFT", "RELIANCE")
             include_news: Whether to fetch news + sentiment (adds latency)
             use_cache: Whether to check/update cache (bypassed in production)
+            market: Market type - "us", "india", or "crypto"
 
         Returns:
             dict with 'report' (FundamentalReport) and 'from_cache' (bool)
         """
         symbol = symbol.upper()
         is_production = os.environ.get("ENVIRONMENT") == "production"
+
+        # Modify symbol based on market
+        if market == "india":
+            symbol = symbol.replace(".NS", "").replace(".BO", "") + ".NS"
+        elif market == "crypto":
+            symbol = symbol.replace("-USD", "") + "-USD"
 
         # Bypass cache in production
         if is_production:

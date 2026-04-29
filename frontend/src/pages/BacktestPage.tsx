@@ -14,6 +14,7 @@ import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
 import { SkeletonChart } from '../components/ui/SkeletonChart';
 import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useRunBacktest } from '../hooks/apiHooks';
+import { formatCurrency, formatLargeCurrency } from '../lib/utils';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
 export const BacktestPage: React.FC = () => {
@@ -161,7 +162,7 @@ export const BacktestPage: React.FC = () => {
             </div>
             <div className="card-content">
               <div className="metric-grid">
-                <MetricCard label="Final Capital" value={`$${result.final_capital.toLocaleString()}`} icon={<DollarSign size={16} />} />
+                <MetricCard label="Final Capital" value={formatLargeCurrency(result.final_capital)} icon={<DollarSign size={16} />} />
                 <MetricCard label="Total Return" value={`${(result.total_return * 100).toFixed(2)}%`}
                   icon={result.total_return >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                   positive={result.total_return >= 0} negative={result.total_return < 0} />
@@ -248,10 +249,10 @@ export const BacktestPage: React.FC = () => {
                             {trade.side}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'right' }}>${trade.entry_price.toFixed(2)}</td>
-                        <td style={{ textAlign: 'right' }}>${trade.exit_price.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(trade.entry_price)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(trade.exit_price)}</td>
                         <td className={trade.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
-                          ${trade.pnl.toFixed(2)}
+                          {formatCurrency(trade.pnl)}
                         </td>
                         <td className={trade.pnl_pct >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 500 }}>
                           {trade.pnl_pct.toFixed(2)}%

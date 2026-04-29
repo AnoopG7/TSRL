@@ -54,6 +54,7 @@ class BacktestService:
         commission: float = 0.001,
         slippage: float = 0.0005,
         parameters: Optional[dict] = None,
+        market: str = "us",
     ) -> BacktestResponse:
         """Run a single backtest and return full results including chart data."""
 
@@ -65,7 +66,9 @@ class BacktestService:
         # Fetch data
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date)
-        df, data_source, _ = self.data_service.fetch_data(symbol, start_dt, end_dt, timeframe)
+        df, data_source, _ = self.data_service.fetch_data(
+            symbol, start_dt, end_dt, timeframe, market=market
+        )
 
         # Configure and run engine
         config = BacktestConfig(
@@ -83,8 +86,15 @@ class BacktestService:
 
         # Persist to database
         backtest_id = self._persist_result(
-            result, strategy_name, symbol, start_dt, end_dt,
-            initial_capital, timeframe, commission, slippage,
+            result,
+            strategy_name,
+            symbol,
+            start_dt,
+            end_dt,
+            initial_capital,
+            timeframe,
+            commission,
+            slippage,
         )
 
         # Build response
@@ -186,7 +196,7 @@ class BacktestService:
 
         equity = ec[equity_col]
         running_max = equity.cummax()
-        drawdown = ((equity - running_max) / running_max * 100)
+        drawdown = (equity - running_max) / running_max * 100
 
         points = []
         for idx, dd_val in drawdown.items():
@@ -217,11 +227,13 @@ class BacktestService:
         points = []
         for idx, ret in monthly_ret.items():
             if pd.notna(ret):
-                points.append({
-                    "year": idx.year,
-                    "month": idx.month,
-                    "return_pct": round(float(ret * 100), 2),
-                })
+                points.append(
+                    {
+                        "year": idx.year,
+                        "month": idx.month,
+                        "return_pct": round(float(ret * 100), 2),
+                    }
+                )
         return points
 
     def _persist_result(
