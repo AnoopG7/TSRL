@@ -2,21 +2,24 @@ import React, { useEffect, useState } from 'react';
 import type { Strategy } from '../../lib/schemas';
 import { Settings2 } from 'lucide-react';
 
+type ParamValue = string | number | boolean;
+
 interface ParameterEditorProps {
   strategy: Strategy | undefined;
-  onChange: (parameters: Record<string, any>) => void;
+  onChange: (parameters: Record<string, ParamValue>) => void;
 }
 
 export const ParameterEditor: React.FC<ParameterEditorProps> = ({ strategy, onChange }) => {
-  const [params, setParams] = useState<Record<string, any>>({});
+  const [params, setParams] = useState<Record<string, ParamValue>>({});
 
   useEffect(() => {
     if (strategy?.parameters && Object.keys(strategy.parameters).length > 0) {
-      const normalizedParams: Record<string, any> = {};
+      const normalizedParams: Record<string, ParamValue> = {};
       Object.entries(strategy.parameters).forEach(([key, rawVal]) => {
-        normalizedParams[key] = (typeof rawVal === 'object' && rawVal !== null && 'value' in rawVal) 
-          ? rawVal.value 
-          : rawVal;
+        const val = (typeof rawVal === 'object' && rawVal !== null && 'value' in rawVal) 
+          ? (rawVal as { value: ParamValue }).value 
+          : rawVal as ParamValue;
+        normalizedParams[key] = val;
       });
       setParams(normalizedParams);
       onChange(normalizedParams);
@@ -75,14 +78,14 @@ export const ParameterEditor: React.FC<ParameterEditorProps> = ({ strategy, onCh
                   type="number" 
                   step="any"
                   className="form-input" 
-                  value={params[key] ?? defaultValue}
+                  value={String(params[key] ?? defaultValue ?? '')}
                   onChange={(e) => handleChange(key, parseFloat(e.target.value))}
                 />
               ) : (
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={params[key] ?? defaultValue ?? ''}
+                  value={String(params[key] ?? defaultValue ?? '')}
                   onChange={(e) => handleChange(key, e.target.value)}
                 />
               )}
