@@ -69,3 +69,9 @@ Thumbs.db
 # Models
 data/models/*.pkl
 data/models/*.joblib
+
+
+# Obsidian Wiki
+Second-Brain/
+# Graphify
+graphify-out/
