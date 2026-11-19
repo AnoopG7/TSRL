@@ -8,29 +8,17 @@ interface MonthlyReturnsHeatmapProps {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Enhanced color scale
+// Diverging scale built from the theme's P&L colours, so it reads in both themes.
+// Intensity saturates at ±10% a month.
 const getColor = (value: number): string => {
-  if (value > 10) return '#14532d';
-  if (value > 7) return '#166534';
-  if (value > 5) return '#15803d';
-  if (value > 3) return '#22c55e';
-  if (value > 1.5) return '#4ade80';
-  if (value > 0.5) return '#86efac';
-  if (value > 0) return '#bbf7d0';
   if (value === 0) return 'var(--color-bg-input)';
-  if (value > -0.5) return '#fecaca';
-  if (value > -1.5) return '#fca5a5';
-  if (value > -3) return '#f87171';
-  if (value > -5) return '#ef4444';
-  if (value > -7) return '#dc2626';
-  if (value > -10) return '#b91c1b';
-  return '#7f1d1d';
+  const pct = Math.round(12 + Math.min(Math.abs(value) / 10, 1) * 70);
+  const hue = value > 0 ? 'var(--color-up)' : 'var(--color-down)';
+  return `color-mix(in srgb, ${hue} ${pct}%, var(--color-bg-card))`;
 };
 
-const getTextColor = (value: number): string => {
-  if (Math.abs(value) > 3) return 'white';
-  return 'var(--color-text-primary)';
-};
+const getTextColor = (value: number): string =>
+  Math.abs(value) > 6 ? 'var(--color-bg-card)' : 'var(--color-text-primary)';
 
 // Stats card
 const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon: React.ReactNode; positive?: boolean; negative?: boolean }> = ({
