@@ -40,6 +40,27 @@ class FundamentalProviderError(Exception):
 class YFinanceFundamentalProvider:
     """Free data source — fetches fundamentals from Yahoo Finance via yfinance."""
 
+    @staticmethod
+    def _normalise_info(info: dict) -> dict:
+        """Bring yfinance fields onto the same units the rest of the app expects.
+
+        Since yfinance 0.2.5x, ``dividendYield`` is reported in percent (0.31 = 0.31%),
+        while every other ratio, and FMP's ``dividendYield``, is a fraction. Store it
+        as a fraction, preferring an unambiguous source when one exists.
+        """
+        info = dict(info)
+        rate = info.get("dividendRate")
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        trailing = info.get("trailingAnnualDividendYield")
+        raw = info.get("dividendYield")
+        if isinstance(rate, (int, float)) and isinstance(price, (int, float)) and price > 0:
+            info["dividendYield"] = rate / price
+        elif isinstance(trailing, (int, float)):
+            info["dividendYield"] = trailing
+        elif isinstance(raw, (int, float)):
+            info["dividendYield"] = raw / 100
+        return info
+
     def fetch(self, symbol: str) -> RawFundamentals:
         """Fetch all fundamental data for a symbol from Yahoo Finance.
 
@@ -59,6 +80,8 @@ class YFinanceFundamentalProvider:
                     f"No data found for symbol '{symbol}'. "
                     "It may be invalid, delisted, or Yahoo Finance is unavailable."
                 )
+
+            info = self._normalise_info(info)
 
             return RawFundamentals(
                 info=info,
