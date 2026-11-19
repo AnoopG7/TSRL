@@ -161,6 +161,16 @@ class PortfolioBacktestRequest(BaseModel):
     market: str = "us"
 
 
+def _downsample(points: list, max_points: int) -> list:
+    """Evenly thin a time series, always keeping the first and last point."""
+    if len(points) <= max_points:
+        return points
+    step = len(points) / (max_points - 1)
+    picked = [points[int(i * step)] for i in range(max_points - 1)]
+    picked.append(points[-1])
+    return picked
+
+
 # ==================== Endpoints ====================
 
 
@@ -188,7 +198,7 @@ async def get_strategy(strategy_name: str):
 
 
 @app.get("/api/v1/backtests")
-async def list_backtests(limit: int = 20):
+def list_backtests(limit: int = 20):
     repo = BacktestRepository()
     try:
         backtests = repo.get_all(limit=limit)
@@ -216,7 +226,7 @@ async def list_backtests(limit: int = 20):
 
 
 @app.post("/api/v1/data/ingest")
-async def ingest_data(request: DataIngestRequest):
+def ingest_data(request: DataIngestRequest):
     try:
         service = DataService()
         result = service.ingest_and_persist(
@@ -232,7 +242,7 @@ async def ingest_data(request: DataIngestRequest):
 
 
 @app.post("/api/v1/backtests/run")
-async def run_backtest(request: BacktestRequest):
+def run_backtest(request: BacktestRequest):
     try:
         service = BacktestService()
         result = service.run_backtest(
@@ -272,7 +282,7 @@ async def run_backtest(request: BacktestRequest):
 
 
 @app.post("/api/v1/backtests/compare")
-async def compare_strategies(request: CompareRequest):
+def compare_strategies(request: CompareRequest):
     try:
         service = BacktestService()
         result = service.compare_strategies(
@@ -291,7 +301,7 @@ async def compare_strategies(request: CompareRequest):
 
 
 @app.post("/api/v1/backtests/portfolio")
-async def run_portfolio_backtest(request: PortfolioBacktestRequest):
+def run_portfolio_backtest(request: PortfolioBacktestRequest):
     """Run portfolio backtest with multiple symbols and optional rebalancing."""
     import math
 
@@ -325,7 +335,9 @@ async def run_portfolio_backtest(request: PortfolioBacktestRequest):
             parameters=request.parameters,
         )
 
-        # Build equity curve response (limit to 500 points)
+        # Build equity curve response, thinned to at most ~500 points.
+        # (It used to keep the first 500 rows, which cut the curve off part-way
+        # through the backtest and made it disagree with total_return.)
         equity_curve = []
         if not result.combined_equity.empty:
             for idx, row in result.combined_equity.iterrows():
@@ -335,7 +347,7 @@ async def run_portfolio_backtest(request: PortfolioBacktestRequest):
                         "total": round(row.get("total", 0), 2),
                     }
                 )
-            equity_curve = equity_curve[:500]
+            equity_curve = _downsample(equity_curve, 500)
 
         response = {
             "status": "success",
@@ -428,7 +440,7 @@ def _run_optimization(request: OptimizationRequest, optimizer_cls: type) -> dict
 
 
 @app.post("/api/v1/optimization/grid")
-async def run_grid_optimization(request: OptimizationRequest):
+def run_grid_optimization(request: OptimizationRequest):
     """Run grid search parameter optimization."""
     try:
         return _run_optimization(request, GridSearchOptimizer)
@@ -439,7 +451,7 @@ async def run_grid_optimization(request: OptimizationRequest):
 
 
 @app.post("/api/v1/optimization/random")
-async def run_random_optimization(request: OptimizationRequest):
+def run_random_optimization(request: OptimizationRequest):
     """Run random search parameter optimization."""
     try:
         return _run_optimization(request, RandomSearchOptimizer)
@@ -450,7 +462,7 @@ async def run_random_optimization(request: OptimizationRequest):
 
 
 @app.post("/api/v1/optimization/genetic")
-async def run_genetic_optimization(request: OptimizationRequest):
+def run_genetic_optimization(request: OptimizationRequest):
     """Run genetic algorithm parameter optimization."""
     try:
         return _run_optimization(request, GeneticOptimizer)
@@ -464,7 +476,7 @@ async def run_genetic_optimization(request: OptimizationRequest):
 
 
 @app.post("/api/v1/walkforward/run")
-async def run_walkforward(request: WalkForwardRequest):
+def run_walkforward(request: WalkForwardRequest):
     """Run walk-forward analysis."""
     try:
         strategy = StrategyRegistry.create(request.strategy_name)
@@ -534,7 +546,7 @@ async def run_walkforward(request: WalkForwardRequest):
 
 
 @app.post("/api/v1/ml/train")
-async def train_ml_model(request: MLTrainRequest):
+def train_ml_model(request: MLTrainRequest):
     """Train an ML model and run backtest with it."""
     try:
         service = BacktestService()
@@ -641,7 +653,7 @@ async def compare_fundamentals(
 
 # ── /{symbol}/news and /{symbol}/insiders MUST come before /{symbol} to avoid route shadowing ──
 @app.get("/api/v1/fundamentals/{symbol}/news")
-async def get_fundamentals_news(symbol: str):
+def get_fundamentals_news(symbol: str):
     """Get only news and sentiment for a stock (lightweight — does NOT run full analysis)."""
     from src.infrastructure.data_providers.news_provider import NewsProvider
 
@@ -660,7 +672,7 @@ async def get_fundamentals_news(symbol: str):
 
 
 @app.get("/api/v1/fundamentals/{symbol}/insiders")
-async def get_fundamentals_insiders(
+def get_fundamentals_insiders(
     symbol: str,
     source: str = Query("finnhub", description="Data source: 'finnhub' or 'fmp'"),
 ):
@@ -684,7 +696,7 @@ async def get_fundamentals_insiders(
 
 
 @app.get("/api/v1/fundamentals/{symbol}")
-async def get_fundamentals(
+def get_fundamentals(
     symbol: str,
     source: str = Query("yfinance", description="Data source: 'yfinance' (free) or 'fmp' (paid)"),
     market: str = Query("us", description="Market: 'us', 'india', or 'crypto'"),

@@ -24,6 +24,9 @@ def get_engine():
         database_url,
         echo=settings.database.echo,
         pool_pre_ping=True,
+        # Blocking endpoints now run in FastAPI's threadpool, so two requests can
+        # write at once; wait for SQLite's lock instead of failing immediately.
+        connect_args={"timeout": 30},
     )
 
 
