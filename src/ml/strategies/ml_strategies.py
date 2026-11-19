@@ -12,6 +12,54 @@ from src.ml.feature_engineering.features import FeatureEngineer
 logger = logging.getLogger(__name__)
 
 
+def _walk_forward_signals(strategy, data: pd.DataFrame) -> pd.DataFrame:
+    """Leakage-free walk-forward predictions shared by the ML strategies.
+
+    At bar i the model may only train on rows whose label is already known, i.e.
+    whose forward window (``prediction_horizon`` bars) has closed by bar i. That
+    horizon is the embargo. The model is refit on that expanding window every
+    ``retrain_period`` bars and predicts every bar that has features, including the
+    final bars whose own labels are not yet known.
+    """
+    signals = pd.DataFrame(index=data.index)
+    signals["close"] = data["close"]
+    signals["signal"] = 0
+
+    features = strategy._generate_features(data)
+    if len(features) == 0:
+        return signals
+    labels = strategy._generate_labels(data).reindex(features.index)
+
+    position = pd.Series(np.arange(len(data)), index=data.index)
+    rows = position.reindex(features.index).to_numpy()
+    X_all = features
+    y_all = labels.to_numpy()
+    has_label = ~np.isnan(y_all)
+    horizon = int(strategy._prediction_horizon)
+    every = max(1, int(strategy._retrain_period))
+
+    predictions = np.zeros(len(features))
+    last_fit_bar: Optional[int] = None
+
+    for k, bar in enumerate(rows):
+        if last_fit_bar is None or bar - last_fit_bar >= every:
+            # Labels at bar j use the close at j + horizon; it is known at bar i if j + horizon <= i.
+            train_mask = has_label & (rows <= bar - horizon)
+            if train_mask.sum() >= strategy._min_train_samples:
+                strategy._train_model_on_window(X_all[train_mask], pd.Series(y_all[train_mask]))
+                last_fit_bar = bar
+
+        if strategy._is_fitted and strategy._model is not None:
+            try:
+                x = X_all.iloc[[k]][strategy._feature_columns]
+                predictions[k] = strategy._model.predict(strategy._scaler.transform(x))[0]
+            except Exception as e:  # pragma: no cover - defensive
+                logger.debug(f"Prediction failed at {features.index[k]}: {e}")
+
+    signals.loc[features.index, "signal"] = predictions.astype(int)
+    return signals
+
+
 @register_strategy("ml_random_forest")
 class MLRandomForestStrategy(BaseStrategy):
     def __init__(
@@ -101,7 +149,7 @@ class MLRandomForestStrategy(BaseStrategy):
                 min_value=5,
                 max_value=50,
                 step=5,
-                description="Retrain model every N bars",
+                description="Refit the model every N bars (embargo = prediction horizon)",
             ),
         }
 
@@ -164,65 +212,7 @@ class MLRandomForestStrategy(BaseStrategy):
         return data
 
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
-        close = data["close"]
-
-        signals = pd.DataFrame(index=data.index)
-        signals["close"] = close
-        signals["signal"] = 0
-
-        # Generate features for the entire dataset
-        features = self._generate_features(data)
-        labels = self._generate_labels(data)
-
-        if len(features) == 0:
-            return signals
-
-        # Find valid indices where both features and labels are available
-        valid_idx = features.dropna().index.intersection(labels.dropna().index)
-        if len(valid_idx) < self._min_train_samples:
-            return signals
-
-        # Sort valid indices
-        valid_idx = valid_idx.sort_values()
-        valid_list = valid_idx.tolist()
-
-        # Walk-forward training: train on expanding window, predict on next period
-        # Only use data available up to each point
-        last_train_idx = -1
-
-        for i, current_idx in enumerate(valid_list):
-            # Determine position in the original data
-            if current_idx not in features.index:
-                continue
-
-            # Find training window: use only data BEFORE current point
-            # Training window ends at current_idx - retrain_period (to avoid lookahead)
-            train_end_pos = max(0, i - self._retrain_period)
-
-            if train_end_pos > 0 and train_end_pos != last_train_idx:
-                # Retrain model on expanding window
-                train_indices = valid_list[:train_end_pos]
-                X_train = features.loc[train_indices]
-                y_train = labels.loc[train_indices]
-
-                self._train_model_on_window(X_train, y_train)
-                last_train_idx = train_end_pos
-
-            # Predict if we have a trained model
-            if self._is_fitted and self._model is not None:
-                try:
-                    X_current = features.loc[[current_idx]]
-                    if len(X_current.columns) != len(self._feature_columns):
-                        # Align columns
-                        X_current = X_current[self._feature_columns]
-
-                    X_scaled = self._scaler.transform(X_current)
-                    prediction = self._model.predict(X_scaled)[0]
-                    signals.loc[current_idx, "signal"] = prediction
-                except Exception as e:
-                    logger.debug(f"Prediction failed at {current_idx}: {e}")
-
-        return signals
+        return _walk_forward_signals(self, data)
 
     def get_requirements(self) -> list[str]:
         return ["open", "high", "low", "close", "volume"]
@@ -326,7 +316,7 @@ class MLGradientBoostingStrategy(BaseStrategy):
                 min_value=5,
                 max_value=50,
                 step=5,
-                description="Retrain model every N bars",
+                description="Refit the model every N bars (embargo = prediction horizon)",
             ),
         }
 
@@ -387,58 +377,7 @@ class MLGradientBoostingStrategy(BaseStrategy):
         return data
 
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
-        close = data["close"]
-
-        signals = pd.DataFrame(index=data.index)
-        signals["close"] = close
-        signals["signal"] = 0
-
-        # Generate features for the entire dataset
-        features = self._generate_features(data)
-        labels = self._generate_labels(data)
-
-        if len(features) == 0:
-            return signals
-
-        # Find valid indices where both features and labels are available
-        valid_idx = features.dropna().index.intersection(labels.dropna().index)
-        if len(valid_idx) < self._min_train_samples:
-            return signals
-
-        # Sort valid indices
-        valid_idx = valid_idx.sort_values()
-        valid_list = valid_idx.tolist()
-
-        # Walk-forward training: train on expanding window, predict on next period
-        last_train_idx = -1
-
-        for i, current_idx in enumerate(valid_list):
-            # Find training window: use only data BEFORE current point
-            train_end_pos = max(0, i - self._retrain_period)
-
-            if train_end_pos > 0 and train_end_pos != last_train_idx:
-                # Retrain model on expanding window
-                train_indices = valid_list[:train_end_pos]
-                X_train = features.loc[train_indices]
-                y_train = labels.loc[train_indices]
-
-                self._train_model_on_window(X_train, y_train)
-                last_train_idx = train_end_pos
-
-            # Predict if we have a trained model
-            if self._is_fitted and self._model is not None:
-                try:
-                    X_current = features.loc[[current_idx]]
-                    if len(X_current.columns) != len(self._feature_columns):
-                        X_current = X_current[self._feature_columns]
-
-                    X_scaled = self._scaler.transform(X_current)
-                    prediction = self._model.predict(X_scaled)[0]
-                    signals.loc[current_idx, "signal"] = prediction
-                except Exception as e:
-                    logger.debug(f"Prediction failed at {current_idx}: {e}")
-
-        return signals
+        return _walk_forward_signals(self, data)
 
     def get_requirements(self) -> list[str]:
         return ["open", "high", "low", "close", "volume"]
