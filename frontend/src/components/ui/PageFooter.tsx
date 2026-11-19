@@ -31,8 +31,8 @@ export const PageFooter: React.FC<PageFooterProps> = ({
         {parameters && parameters.length > 0 && (
           <div className="page-footer-section">
             <h4 className="page-footer-subtitle">
-              <Settings size={14} style={{ display: 'inline', marginRight: '0.25rem', verticalAlign: 'middle' }} />
-              Key Parameters
+              <Settings size={14} />
+              Inputs
             </h4>
             <dl className="page-footer-params">
               {parameters.map((param) => (
@@ -48,8 +48,8 @@ export const PageFooter: React.FC<PageFooterProps> = ({
         {tips && tips.length > 0 && (
           <div className="page-footer-section">
             <h4 className="page-footer-subtitle">
-              <Lightbulb size={14} style={{ display: 'inline', marginRight: '0.25rem', verticalAlign: 'middle' }} />
-              Tips
+              <Lightbulb size={14} />
+              Good practice
             </h4>
             <ul className="page-footer-tips">
               {tips.map((tip, idx) => (

@@ -4,15 +4,17 @@ import { useThemeStore } from '../../store/useThemeStore';
 
 export const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useThemeStore();
+  const next = theme === 'dark' ? 'light' : 'dark';
 
   return (
     <button
+      type="button"
       onClick={toggleTheme}
       className="theme-toggle"
-      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
     >
-      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
     </button>
   );
 };
