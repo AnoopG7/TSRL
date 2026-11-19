@@ -45,7 +45,10 @@ export const BacktestResultSchema = z.object({
   metrics: RiskMetricsSchema,
 });
 
-export type BacktestResult = z.infer<typeof BacktestResultSchema>;
+export type BacktestResult = Omit<z.infer<typeof BacktestResultSchema>, 'metrics'> & {
+  metrics: RiskMetrics & Record<string, number | null>;
+  execution_time_ms?: number;
+};
 
 export const TradeSchema = z.object({
   entry_time: z.string(),

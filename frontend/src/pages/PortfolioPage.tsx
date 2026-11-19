@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { Briefcase, AlertCircle, TrendingUp, TrendingDown, Activity, PieChart, RefreshCw, Award, Target } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, Activity, PieChart, RefreshCw, Award, Target } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
+import { strategyLabel } from '../lib/strategies';
 import { toast } from 'sonner';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, PieChart as RechartsPie, Pie
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
 
-import { EquityCurveChart } from '../components/charts';
+import { PerformanceChart } from '../components/charts/quant/PerformanceChart';
 import { ParameterEditor } from '../components/forms/ParameterEditor';
 import { MetricCard } from '../components/ui/MetricCard';
 import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
@@ -16,7 +18,7 @@ import { useStrategies, useRunPortfolioBacktest } from '../hooks/apiHooks';
 import { DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL } from '../lib/constants';
 import type { PortfolioConfig, PortfolioResult } from '../lib/schemas';
 
-const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+const COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `var(--series-${n})`);
 
 // Stats card component
 const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon: React.ReactNode; positive?: boolean; negative?: boolean }> = ({
@@ -153,14 +155,17 @@ export const PortfolioPage: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* Configuration Form */}
-      <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+      <PageHeader
+        kicker="Research"
+        icon={PieChart}
+        title="Portfolio backtest"
+        lede="Trade one strategy across a basket of assets with target weights, scheduled rebalancing and a benchmark to measure against."
+      />
+
+      <section className="card">
         <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <Briefcase size={20} style={{ color: 'var(--color-accent-400)' }} />
-            <h2 className="card-title">Portfolio Backtest</h2>
-          </div>
-          <p className="card-description">Backtest multiple assets with custom allocation weights and rebalancing</p>
+          <h2 className="card-title">Portfolio setup</h2>
+          <p className="card-description">Symbols, weights and rebalancing rules</p>
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -170,7 +175,7 @@ export const PortfolioPage: React.FC = () => {
                 <select className="form-input" {...register('strategy_name')}>
                   {strategies.map((s) => (
                     <option key={s.registry_key || s.name} value={s.registry_key || s.name}>
-                      {s.name} ({s.type})
+                      {strategyLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -248,7 +253,7 @@ export const PortfolioPage: React.FC = () => {
         <>
           {/* Summary Stats Bar */}
           {summaryStats && (
-            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <section className="card">
               <div className="card-header">
                 <h2 className="card-title">Portfolio Overview</h2>
               </div>
@@ -286,54 +291,29 @@ export const PortfolioPage: React.FC = () => {
           )}
 
           {/* Allocation & Performance Charts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-lg)' }}>
+          <div className="grid-2" style={{ marginBottom: 'var(--spacing-lg)' }}>
             {/* Allocation Pie Chart */}
             <section className="card">
               <div className="card-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-                  <PieChart size={20} style={{ color: 'var(--color-accent-400)' }} />
-                  <h2 className="card-title">Portfolio Allocation</h2>
-                </div>
+                <h2 className="card-title">Target allocation</h2>
+                <p className="card-description">Weights the portfolio rebalances back to</p>
               </div>
               <div className="card-content">
-                <div style={{ height: 280 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPie>
-                      <Pie
-                        data={allocationData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={2}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value.toFixed(0)}%`}
-                        labelLine={{ stroke: 'var(--color-text-muted)', strokeWidth: 1 }}
-                      >
-                        {allocationData.map((entry, index) => (
-                          <Cell key={index} fill={entry.fill} stroke="var(--color-bg-card)" strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        position={{ x: 100, y: 10 }}
-                        wrapperStyle={{ pointerEvents: 'none' }}
-                        content={({ active, payload }) => {
-                          if (!active || !payload || !payload.length) return null;
-                          const data = payload[0].payload;
-                          return (
-                            <div className="chart-tooltip">
-                              <div className="chart-tooltip-header">{data.name}</div>
-                              <div className="chart-tooltip-row">
-                                <span className="chart-tooltip-label">Allocation</span>
-                                <span className="chart-tooltip-value">{data.value.toFixed(1)}%</span>
-                              </div>
-                            </div>
-                          );
-                        }}
-                      />
-                    </RechartsPie>
-                  </ResponsiveContainer>
+                <div className="alloc-strip" role="img" aria-label="Allocation by asset">
+                  {allocationData.map((d) => (
+                    <span key={d.name} style={{ flexGrow: d.value, background: d.fill }} title={`${d.name} ${d.value.toFixed(1)}%`} />
+                  ))}
                 </div>
+                <table className="alloc-table">
+                  <tbody>
+                    {allocationData.map((d) => (
+                      <tr key={d.name}>
+                        <td><i style={{ background: d.fill }} />{d.name}</td>
+                        <td className="t-right">{d.value.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
 
@@ -347,41 +327,34 @@ export const PortfolioPage: React.FC = () => {
                 <div style={{ height: 280 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={assetPerformanceData} layout="vertical" margin={{ top: 10, right: 30, bottom: 10, left: 50 }}>
-                      <defs>
-                        <linearGradient id="barPosGrad" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.6} />
-                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0.9} />
-                        </linearGradient>
-                        <linearGradient id="barNegGrad" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" opacity={0.4} horizontal={false} />
+                      <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
                       <XAxis
                         type="number"
-                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
-                        stroke="var(--color-border-default)"
+                        tick={{ fill: 'var(--chart-axis)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
                         tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
                       />
                       <YAxis
                         type="category"
                         dataKey="symbol"
-                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
-                        stroke="var(--color-border-default)"
-                        width={50}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={56}
                       />
                       <Tooltip
                         content={<PerformanceTooltip />}
                         position={{ x: 100, y: 10 }}
                         wrapperStyle={{ pointerEvents: 'none' }}
                       />
-                      <ReferenceLine x={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
-                      <Bar dataKey="return" radius={[0, 4, 4, 0]}>
+                      <ReferenceLine x={0} stroke="var(--chart-baseline)" />
+                      <Bar dataKey="return" radius={[0, 4, 4, 0]} barSize={18} isAnimationActive={false}>
                         {assetPerformanceData.map((entry, index) => (
                           <Cell
                             key={index}
-                            fill={entry.return >= 0 ? 'url(#barPosGrad)' : 'url(#barNegGrad)'}
+                            fill={entry.return >= 0 ? 'var(--color-up)' : 'var(--color-down)'}
+                            fillOpacity={0.85}
                           />
                         ))}
                       </Bar>
@@ -393,7 +366,7 @@ export const PortfolioPage: React.FC = () => {
           </div>
 
           {/* Performance Summary */}
-          <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <section className="card">
             <div className="card-header">
               <h2 className="card-title">Performance Summary</h2>
             </div>
@@ -417,7 +390,7 @@ export const PortfolioPage: React.FC = () => {
 
           {/* Rebalancing Info */}
           {result.rebalancing.total_events > 0 && (
-            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <section className="card">
               <div className="card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
                   <RefreshCw size={20} style={{ color: 'var(--color-accent-400)' }} />
@@ -435,7 +408,7 @@ export const PortfolioPage: React.FC = () => {
 
           {/* Portfolio Metrics */}
           {result.portfolio_metrics && (
-            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <section className="card">
               <div className="card-header">
                 <h2 className="card-title">Portfolio Metrics</h2>
               </div>
@@ -465,10 +438,10 @@ export const PortfolioPage: React.FC = () => {
           {equityCurveData.length > 0 && (
             <section className="card">
               <div className="card-header">
-                <h2 className="card-title">Portfolio Equity Curve</h2>
+                <h2 className="card-title">Portfolio equity</h2>
               </div>
               <div className="card-content">
-                <EquityCurveChart data={equityCurveData} initialCapital={100000} />
+                <PerformanceChart equity={equityCurveData} initialCapital={equityCurveData[0]?.equity ?? 100000} />
               </div>
             </section>
           )}
@@ -477,7 +450,7 @@ export const PortfolioPage: React.FC = () => {
 
       {/* Page Footer */}
       <PageFooter
-        title="Portfolio Backtesting"
+        title="portfolio backtesting"
         description="Test trading strategies across multiple assets with customizable allocation weights and automatic rebalancing. Evaluate portfolio-level metrics including diversification and correlation."
         parameters={[
           { name: 'Symbols', description: 'Comma-separated list of stock tickers to include in the portfolio' },

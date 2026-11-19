@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import {
   DEFAULT_COMMISSION,
@@ -21,9 +21,12 @@ import type {
 } from '../lib/schemas';
 import type { FundamentalReport } from '../lib/schemas/fundamental.schema';
 
-interface BacktestResponse {
+export interface BacktestResponse {
   status: string;
   backtest_id?: string;
+  strategy?: string;
+  symbol?: string;
+  data_source?: string;
   results: {
     final_capital: number;
     total_return: number;
@@ -34,6 +37,7 @@ interface BacktestResponse {
       win_rate: number;
       sortino_ratio: number;
       profit_factor: number;
+      [key: string]: number | null;
     };
     execution_time_ms: number;
   };
@@ -51,6 +55,44 @@ interface BacktestResponse {
   }>;
 }
 
+export interface SavedBacktest {
+  id: number;
+  name: string;
+  symbol: string | null;
+  strategy: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  initial_capital: number;
+  final_capital: number | null;
+  total_return: number | null;
+  total_trades: number | null;
+  status: string;
+  created_at: string | null;
+}
+
+export function useApiHealth() {
+  return useQuery<{ status: string; timestamp: string }>({
+    queryKey: ['health'],
+    queryFn: async () => {
+      const { data } = await api.get(API_ENDPOINTS.health, { timeout: 4000 });
+      return data;
+    },
+    refetchInterval: 15000,
+    retry: false,
+  });
+}
+
+export function useRecentBacktests(limit = 8) {
+  return useQuery<SavedBacktest[]>({
+    queryKey: ['backtests', limit],
+    queryFn: async () => {
+      const { data } = await api.get(`${API_ENDPOINTS.backtests}?limit=${limit}`);
+      return data.backtests;
+    },
+    retry: false,
+  });
+}
+
 export function useStrategies() {
   return useQuery<Strategy[]>({
     queryKey: QUERY_KEYS.strategies,
@@ -64,7 +106,9 @@ export function useStrategies() {
 
 export function useRunBacktest() {
   const { source, market } = useDataSourceStore();
+  const queryClient = useQueryClient();
   return useMutation<BacktestResponse, Error, BacktestConfig>({
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backtests'] }),
     mutationFn: async (config) => {
       const { data } = await api.post(API_ENDPOINTS.backtestRun, {
         ...config,

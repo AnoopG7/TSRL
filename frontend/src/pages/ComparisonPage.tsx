@@ -1,17 +1,20 @@
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, BarChart3, Trophy, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
+import { AlertCircle, Trophy, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
 import { z } from 'zod';
+import { GitCompareArrows } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
+import { strategyKey, strategyLabel, familyLabel } from '../lib/strategies';
+import { formatMoney } from '../lib/utils';
 import { toast } from 'sonner';
 
 import { useBacktestStore } from '../store';
-import { EquityCurveChart } from '../components/charts';
+import { MultiEquityChart } from '../components/charts/quant/MultiEquityChart';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { SkeletonChart } from '../components/ui/SkeletonChart';
 import { PageFooter } from '../components/ui/PageFooter';
 import { useStrategies, useCompareStrategies } from '../hooks/apiHooks';
-import { formatLargeCurrency } from '../lib/utils';
 import { DEFAULT_SYMBOL, DEFAULT_START_DATE, DEFAULT_END_DATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_DATA_SOURCE } from '../lib/constants';
 
 const ComparisonFormSchema = z.object({
@@ -69,7 +72,9 @@ export const ComparisonPage: React.FC = () => {
   const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
   const compareMutation = useCompareStrategies();
   const { comparisonResult, setComparisonResult, error, setError } = useBacktestStore();
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
+  // Until the user picks, preselect three rule-based strategies so a comparison is one click away.
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const selectedStrategies = picked ?? strategies.filter((s) => s.type !== 'ml').slice(0, 3).map(strategyKey);
 
   const {
     register,
@@ -87,9 +92,9 @@ export const ComparisonPage: React.FC = () => {
   });
 
   const toggleStrategy = (name: string) => {
-    setSelectedStrategies((prev) =>
-      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
-    );
+    setPicked(selectedStrategies.includes(name)
+      ? selectedStrategies.filter((s) => s !== name)
+      : [...selectedStrategies, name]);
   };
 
   const onSubmit = async (data: { symbol: string; start_date: string; end_date: string; initial_capital: number; source: 'yahoo' | 'alpha_vantage' }) => {
@@ -158,20 +163,23 @@ export const ComparisonPage: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* Configuration */}
-      <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+      <PageHeader
+        kicker="Research"
+        icon={GitCompareArrows}
+        title="Compare strategies"
+        lede="Run several strategies on the same symbol and dates, then rank them on return, risk and consistency."
+      />
+
+      <section className="card">
         <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <BarChart3 size={20} style={{ color: 'var(--color-accent-400)' }} />
-            <h2 className="card-title">Strategy Comparison</h2>
-          </div>
-          <p className="card-description">Select strategies to compare on the same data</p>
+          <h2 className="card-title">Pick strategies</h2>
+          <p className="card-description">At least two, all tested on identical data</p>
         </div>
         <div className="card-content">
           <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label className="form-label" style={{ marginBottom: 'var(--spacing-sm)', display: 'block' }}>
-              Select Strategies (min 2)
-            </label>
+            <span className="form-label" style={{ marginBottom: 'var(--spacing-sm)', display: 'block' }}>
+              Strategies ({selectedStrategies.length} selected, need at least 2)
+            </span>
             <div className="strategy-grid">
               {strategies.map((s) => {
                 const key = s.registry_key || s.name;
@@ -182,8 +190,8 @@ export const ComparisonPage: React.FC = () => {
                     className={`strategy-chip ${selectedStrategies.includes(key) ? 'strategy-chip-active' : ''}`}
                     onClick={() => toggleStrategy(key)}
                   >
-                    {s.name}
-                    <span className="strategy-chip-type">{s.type}</span>
+                    {strategyLabel(s)}
+                    <span className="strategy-chip-type">{familyLabel(s.type)}</span>
                   </button>
                 );
               })}
@@ -240,23 +248,20 @@ export const ComparisonPage: React.FC = () => {
 
       {/* Chart with overlaid equity curves */}
       {comparisonResult && equityCurveData && (
-        <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+        <section className="card">
           <div className="card-header">
-            <h2 className="card-title">Equity Curves</h2>
+            <h2 className="card-title">Growth of each strategy</h2>
+            <p className="card-description">Indexed to each strategy’s starting capital, so the lines share one axis</p>
           </div>
           <div className="card-content">
-            <EquityCurveChart
-              data={[]}
-              comparisonData={equityCurveData}
-              initialCapital={comparisonResult.initial_capital}
-            />
+            <MultiEquityChart series={equityCurveData} labelFor={strategyLabel} />
           </div>
         </section>
       )}
 
       {/* Summary Stats */}
       {summaryStats && (
-        <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+        <section className="card">
           <div className="card-header">
             <h2 className="card-title">Comparison Summary</h2>
           </div>
@@ -264,7 +269,7 @@ export const ComparisonPage: React.FC = () => {
             <div className="chart-stats-bar">
               <StatCard
                 label="Best Performer"
-                value={summaryStats.best.strategy}
+                value={strategyLabel(summaryStats.best.strategy)}
                 subtext={`+${(summaryStats.best.total_return * 100).toFixed(1)}%`}
                 icon={<Trophy size={16} />}
                 positive
@@ -322,15 +327,15 @@ export const ComparisonPage: React.FC = () => {
                     .map((r) => {
                       const rank = getRank(r.strategy);
                       return (
-                        <tr key={r.strategy} style={rank === 1 ? { background: 'rgba(34, 197, 94, 0.05)' } : undefined}>
+                        <tr key={r.strategy} className={rank === 1 ? 'row-best' : undefined}>
                           <td style={{ fontWeight: 600 }}>
-                            {r.strategy}
+                            {strategyLabel(r.strategy)}
                             <RankBadge rank={rank} />
                           </td>
                           <td className={r.total_return >= 0 ? 'text-positive' : 'text-negative'} style={{ textAlign: 'right', fontWeight: 600 }}>
                             {(r.total_return * 100).toFixed(2)}%
                           </td>
-                          <td style={{ textAlign: 'right' }}>${r.final_capital.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right' }}>{formatMoney(r.final_capital)}</td>
                           <td style={{
                             textAlign: 'right',
                             fontWeight: isBestMetric(r.strategy, 'sharpe_ratio') ? 600 : 400,
@@ -382,7 +387,7 @@ export const ComparisonPage: React.FC = () => {
 
       {/* Page Footer */}
       <PageFooter
-        title="Strategy Comparison"
+        title="strategy comparison"
         description="Compare multiple trading strategies side-by-side on identical market data. Visualize equity curves together and compare key performance metrics to select the best approach."
         parameters={[
           { name: 'Strategies', description: 'Select 2 or more strategies to compare' },

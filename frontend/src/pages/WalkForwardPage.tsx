@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle, Table, GitCompare, TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
+import { AlertCircle, Table, TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
+import { Footprints } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
+import { WalkForwardChart } from '../components/charts/quant/WalkForwardChart';
+import { strategyLabel } from '../lib/strategies';
 import { toast } from 'sonner';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine
-} from 'recharts';
 import { useStrategies, useRunWalkForward } from '../hooks/apiHooks';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { SkeletonMetricGrid } from '../components/ui/SkeletonMetricGrid';
@@ -41,30 +42,6 @@ const StatCard: React.FC<{ label: string; value: string; subtext?: string; icon:
   </div>
 );
 
-// Custom tooltip for the bar chart
-const WindowTooltip: React.FC<{ active?: boolean; payload?: Array<{ payload: { window: number; return: number; trades: number; period: string } }> }> = ({ active, payload }) => {
-  if (!active || !payload || !payload.length) return null;
-  const data = payload[0].payload;
-  return (
-    <div className="chart-tooltip">
-      <div className="chart-tooltip-header">Window #{data.window}</div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Period</span>
-        <span className="chart-tooltip-value">{data.period}</span>
-      </div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Return</span>
-        <span className={`chart-tooltip-value ${data.return >= 0 ? 'positive' : 'negative'}`}>
-          {(data.return * 100).toFixed(2)}%
-        </span>
-      </div>
-      <div className="chart-tooltip-row">
-        <span className="chart-tooltip-label">Trades</span>
-        <span className="chart-tooltip-value">{data.trades}</span>
-      </div>
-    </div>
-  );
-};
 
 export const WalkForwardPage: React.FC = () => {
   const { data: strategies = [], isLoading: isLoadingStrategies } = useStrategies();
@@ -166,14 +143,17 @@ export const WalkForwardPage: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* Configuration Form */}
-      <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+      <PageHeader
+        kicker="Validate"
+        icon={Footprints}
+        title="Walk-forward validation"
+        lede="Re-optimise on a rolling training window, then score only on the unseen window that follows. Consistent out-of-sample results are the signal that an edge is real."
+      />
+
+      <section className="card">
         <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <GitCompare size={20} style={{ color: 'var(--color-accent-400)' }} />
-            <h2 className="card-title">Walk-Forward Analysis</h2>
-          </div>
-          <p className="card-description">Evaluate strategy stability over rolling forward test windows to prevent overfitting.</p>
+          <h2 className="card-title">Window setup</h2>
+          <p className="card-description">Training and test window lengths in trading days</p>
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -184,7 +164,7 @@ export const WalkForwardPage: React.FC = () => {
                 <select className="form-input" {...register('strategy_name')}>
                   {strategies.map((s) => (
                     <option key={s.registry_key || s.name} value={s.registry_key || s.name}>
-                      {s.name} ({s.type})
+                      {strategyLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -283,7 +263,7 @@ export const WalkForwardPage: React.FC = () => {
       {result && (
         <>
           {/* Analysis Summary with Stats Bar */}
-          <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <section className="card">
             <div className="card-header">
               <h2 className="card-title">Analysis Summary</h2>
             </div>
@@ -323,70 +303,13 @@ export const WalkForwardPage: React.FC = () => {
 
           {/* Rolling Windows Chart */}
           {result.windows && result.windows.length > 0 && (
-            <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <section className="card">
               <div className="card-header">
-                <h2 className="card-title">Window Performance Over Time</h2>
-                <p className="card-description">Test returns for each rolling validation window</p>
+                <h2 className="card-title">Out-of-sample performance</h2>
+                <p className="card-description">Only the test windows: data the optimiser never saw when choosing parameters</p>
               </div>
               <div className="card-content">
-                <div style={{ height: 300 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={result.windows.map((w: { test_start: string; test_end: string; test_return: number; test_trades: number }, idx: number) => ({
-                        window: idx + 1,
-                        return: w.test_return,
-                        trades: w.test_trades,
-                        period: `${w.test_start.split('T')[0]} → ${w.test_end.split('T')[0]}`
-                      }))}
-                      margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
-                    >
-                      <defs>
-                        <linearGradient id="barPositive" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0.6} />
-                        </linearGradient>
-                        <linearGradient id="barNegative" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.6} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" opacity={0.4} vertical={false} />
-                      <XAxis
-                        dataKey="window"
-                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
-                        stroke="var(--color-border-default)"
-                        tickFormatter={(v) => `W${v}`}
-                      />
-                      <YAxis
-                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
-                        stroke="var(--color-border-default)"
-                        tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                      />
-                      <Tooltip
-                        content={<WindowTooltip />}
-                        position={{ x: 100, y: 10 }}
-                        wrapperStyle={{ pointerEvents: 'none' }}
-                      />
-                      <ReferenceLine y={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
-                      <Bar dataKey="return" radius={[4, 4, 0, 0]}>
-                        {result.windows.map((w: { test_return: number }, idx: number) => (
-                          <Cell
-                            key={idx}
-                            fill={w.test_return >= 0 ? 'url(#barPositive)' : 'url(#barNegative)'}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Summary annotation */}
-                <div className="chart-annotation" style={{ marginTop: 'var(--spacing-md)' }}>
-                  <span className="chart-annotation-label">Win Rate:</span>
-                  <span className="chart-annotation-value">
-                    {((result.windows.filter((w: { test_return: number }) => w.test_return > 0).length / result.windows.length) * 100).toFixed(0)}% of windows profitable
-                  </span>
-                </div>
+                <WalkForwardChart windows={result.windows} />
               </div>
             </section>
           )}
@@ -438,7 +361,7 @@ export const WalkForwardPage: React.FC = () => {
 
       {/* Page Footer */}
       <PageFooter
-        title="Walk-Forward Analysis"
+        title="walk-forward analysis"
         description="Test strategy robustness by repeatedly optimizing on historical data and validating on future data. This rolling window approach helps detect overfitting and validates out-of-sample performance."
         parameters={[
           { name: 'Train Window', description: 'Days to use for parameter optimization (default: 252 = 1 year)' },

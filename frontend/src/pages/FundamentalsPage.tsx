@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Building2, TrendingUp, TrendingDown, DollarSign, BarChart3,
+  Building2, TrendingUp, TrendingDown, DollarSign, BarChart3,
   Newspaper, Activity, ShieldCheck, AlertTriangle, ArrowUpRight, ArrowDownRight,
   ExternalLink, Globe, Users, Briefcase, Lock, RefreshCw
 } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
 import { toast } from 'sonner';
 import { useFundamentals, useCompareFundamentals } from '../hooks/apiHooks';
 import { useDataSourceStore } from '../store/useDataSourceStore';
@@ -116,16 +117,17 @@ export function FundamentalsPage() {
 
   return (
     <div className="animate-fadeIn">
-      {/* Search Bar */}
-      <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+      <PageHeader
+        kicker="Markets"
+        icon={Building2}
+        title="Company fundamentals"
+        lede="Health scores, financial trends, valuation ratios, earnings surprises, news sentiment and insider activity for any listed company."
+      />
+
+      <section className="card">
         <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <Search size={20} style={{ color: 'var(--color-accent-400)' }} />
-            <h2 className="card-title">Fundamental Analysis</h2>
-          </div>
-          <p className="card-description">
-            Enter a stock symbol to analyze company fundamentals, financial health, and market sentiment
-          </p>
+          <h2 className="card-title">Look up a company</h2>
+          <p className="card-description">One symbol for a full report, or several separated by commas to compare</p>
         </div>
         <div className="card-content">
           <form onSubmit={handleSearch} style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--spacing-sm)' }}>
@@ -223,7 +225,7 @@ export function FundamentalsPage() {
       {!isCompareMode && !isLoading && report && (
         <>
           {/* Company Header */}
-          <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <section className="card">
             <div className="card-content" style={{ padding: 'var(--spacing-lg)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
                 <div>
@@ -316,7 +318,7 @@ export function FundamentalsPage() {
               </div>
 
               {/* Analyst & 52-week */}
-              <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <section className="card">
                 <div className="card-header">
                   <h2 className="card-title">Analyst Consensus & Market Position</h2>
                 </div>
@@ -386,7 +388,7 @@ export function FundamentalsPage() {
             <div className="animate-fadeIn">
               {/* Sentiment Banner */}
               {report.sentiment && (
-                <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <section className="card">
                   <div className="card-content" style={{ padding: 'var(--spacing-lg)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
                       <div>

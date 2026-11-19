@@ -98,3 +98,21 @@ export function extractParamValue<T>(rawVal: T | { value: T }): T {
   }
   return rawVal as T;
 }
+/**
+ * Currency in the selected market with no decimals, signed with a true minus.
+ * @example formatMoney(-977.5) => "−$978"
+ */
+export function formatMoney(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return '—';
+  const config = CURRENCY_CONFIG[useDataSourceStore.getState().market];
+  const body = Math.abs(amount).toLocaleString(config.locale, { maximumFractionDigits: 0 });
+  return `${amount < 0 ? '−' : ''}${config.symbol}${body}`;
+}
+
+/** Signed percentage from a fraction. @example formatPct(0.093) => "+9.30%" */
+export function formatPct(fraction: number | null | undefined, digits = 2, signed = true): string {
+  if (fraction == null || !Number.isFinite(fraction)) return '—';
+  const v = fraction * 100;
+  const sign = v > 0 && signed ? '+' : v < 0 ? '−' : '';
+  return `${sign}${Math.abs(v).toFixed(digits)}%`;
+}

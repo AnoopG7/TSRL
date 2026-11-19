@@ -29,6 +29,8 @@ export const DATA_SOURCE_OPTIONS: Array<{
 
 // API endpoints
 export const API_ENDPOINTS = {
+  health: '/api/v1/health',
+  backtests: '/api/v1/backtests',
   strategies: '/api/v1/strategies',
   backtestRun: '/api/v1/backtests/run',
   backtestCompare: '/api/v1/backtests/compare',

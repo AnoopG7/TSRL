@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle, Settings2, Table } from 'lucide-react';
+import { AlertCircle, Table } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
+import { strategyLabel } from '../lib/strategies';
 import { toast } from 'sonner';
 import { useStrategies, useRunOptimization } from '../hooks/apiHooks';
 import { ParameterSensitivityChart } from '../components/charts';
@@ -140,14 +143,17 @@ export const OptimizationPage: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* Configuration Form */}
-      <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+      <PageHeader
+        kicker="Validate"
+        icon={SlidersHorizontal}
+        title="Optimize parameters"
+        lede="Search a strategy’s parameter space with grid, random or genetic search, and see which settings move the score."
+      />
+
+      <section className="card">
         <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <Settings2 size={20} style={{ color: 'var(--color-accent-400)' }} />
-            <h2 className="card-title">Hyperparameter Optimization</h2>
-          </div>
-          <p className="card-description">Sweep strategy parameters to find the optimal configuration</p>
+          <h2 className="card-title">Search setup</h2>
+          <p className="card-description">Choose a method, an objective and the ranges to sweep</p>
         </div>
         <div className="card-content">
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -159,7 +165,7 @@ export const OptimizationPage: React.FC = () => {
                 <select className="form-input" {...register('strategy_name')}>
                   {strategies.map((s) => (
                     <option key={s.registry_key || s.name} value={s.registry_key || s.name}>
-                      {s.name} ({s.type})
+                      {strategyLabel(s)}
                     </option>
                   ))}
                 </select>
@@ -274,7 +280,7 @@ export const OptimizationPage: React.FC = () => {
       {result && (
         <>
           {/* Best Parameters Summary */}
-          <section className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <section className="card">
             <div className="card-header">
               <h2 className="card-title">Best Configuration</h2>
             </div>
@@ -355,7 +361,7 @@ export const OptimizationPage: React.FC = () => {
 
       {/* Page Footer */}
       <PageFooter
-        title="Optimization"
+        title="optimization"
         description="Search through parameter combinations to find the optimal configuration for your trading strategy. Grid search tests all combinations while random and genetic methods sample intelligently."
         parameters={[
           { name: 'Optimization Method', description: 'Grid (exhaustive), Random (sampling), or Genetic (evolutionary) search' },
