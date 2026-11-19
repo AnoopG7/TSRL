@@ -289,21 +289,34 @@ class BacktestEngine:
         if not trades:
             return pd.DataFrame(columns=["timestamp", "equity", "returns", "drawdown"])
 
+        # Mark-to-market: realised P&L from closed trades plus the unrealised P&L
+        # of whichever position is open at each bar's close. Without this the curve
+        # only moves on exit days and daily-return metrics (Sharpe, VaR, volatility)
+        # are computed from mostly-zero returns.
         equity_data = []
-        current_capital = initial_capital
-
+        realised = initial_capital
+        closes = data["close"].to_numpy()
         timestamps = data.index.tolist()
 
         trade_idx = 0
-        for timestamp in timestamps:
+        for i, timestamp in enumerate(timestamps):
             while trade_idx < len(trades) and trades[trade_idx].exit_time <= timestamp:
-                current_capital += trades[trade_idx].pnl if trades[trade_idx].pnl else 0
+                realised += trades[trade_idx].pnl if trades[trade_idx].pnl else 0
                 trade_idx += 1
+
+            unrealised = 0.0
+            if trade_idx < len(trades):
+                open_trade = trades[trade_idx]
+                if open_trade.entry_time <= timestamp:
+                    move = closes[i] - open_trade.entry_price
+                    if open_trade.side == TradeSide.SHORT:
+                        move = -move
+                    unrealised = move * open_trade.quantity
 
             equity_data.append(
                 {
                     "timestamp": timestamp,
-                    "equity": current_capital,
+                    "equity": realised + unrealised,
                 }
             )
 
