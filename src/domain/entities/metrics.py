@@ -59,20 +59,36 @@ class RiskMetrics:
 
     @property
     def risk_of_ruin(self) -> float:
+        """Probability of ruin, bounded to [0, 1].
+
+        Uses the classic fixed-fractional approximation ((1 - E) / (1 + E)) ** N, where
+        E = (p*b - q) / (p*b + q) is the per-trade edge (p = win rate, q = 1 - p,
+        b = average win / average loss) and N is the number of trades. A profit factor
+        at or below 1 means no edge, so ruin is certain.
+        """
+        if self.total_trades == 0:
+            return 0.0
         if self.win_rate == 0 or self.profit_factor == 0:
             return 1.0
         if self.win_rate == 1.0:
             return 0.0
-        loss_rate = 1 - self.win_rate
         if self.profit_factor <= 1:
             return 1.0
-        return (loss_rate / self.win_rate) ** self.total_trades if self.total_trades > 0 else 0.0
+        p = self.win_rate
+        q = 1 - p
+        # Payoff ratio from the profit factor: pf = p*b / q  =>  b = pf*q / p
+        b = self.profit_factor * q / p
+        edge = (p * b - q) / (p * b + q)
+        if edge <= 0:
+            return 1.0
+        return float(min(1.0, max(0.0, ((1 - edge) / (1 + edge)) ** self.total_trades)))
 
     @property
     def return_to_drawdown(self) -> float:
-        if self.max_drawdown == 0:
+        """Total return divided by max drawdown, both as fractions."""
+        if self.max_drawdown_pct == 0:
             return 0.0
-        return self.total_return / abs(self.max_drawdown)
+        return self.total_return / (abs(self.max_drawdown_pct) / 100)
 
     @property
     def recovery_factor(self) -> float:
@@ -228,7 +244,8 @@ class RiskMetrics:
         metrics.max_drawdown = abs(drawdown.min()) * initial_capital
 
         if metrics.max_drawdown_pct > 0:
-            metrics.calmar_ratio = metrics.cagr / metrics.max_drawdown_pct
+            # Both as fractions: CAGR / max drawdown
+            metrics.calmar_ratio = metrics.cagr / (metrics.max_drawdown_pct / 100)
 
         return metrics
 

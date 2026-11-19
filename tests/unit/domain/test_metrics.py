@@ -61,20 +61,30 @@ class TestRiskMetrics:
         metrics = RiskMetrics(total_trades=10, win_rate=0.5, profit_factor=1.0)
         assert metrics.risk_of_ruin == 1.0
 
+    def test_risk_metrics_risk_of_ruin_is_bounded_for_low_win_rate(self):
+        # Regression: (loss_rate / win_rate) ** n used to explode above 1e15
+        metrics = RiskMetrics(total_trades=34, win_rate=0.26, profit_factor=1.06)
+        assert 0.0 <= metrics.risk_of_ruin <= 1.0
+
+    def test_risk_metrics_risk_of_ruin_falls_with_more_edge(self):
+        weak = RiskMetrics(total_trades=50, win_rate=0.5, profit_factor=1.1)
+        strong = RiskMetrics(total_trades=50, win_rate=0.5, profit_factor=2.0)
+        assert strong.risk_of_ruin < weak.risk_of_ruin
+
     def test_risk_metrics_return_to_drawdown(self):
-        metrics = RiskMetrics(total_return=0.2, max_drawdown=0.1)
+        metrics = RiskMetrics(total_return=0.2, max_drawdown_pct=10.0)
         assert metrics.return_to_drawdown == 2.0
 
     def test_risk_metrics_return_to_drawdown_no_drawdown(self):
-        metrics = RiskMetrics(total_return=0.2, max_drawdown=0.0)
+        metrics = RiskMetrics(total_return=0.2, max_drawdown_pct=0.0)
         assert metrics.return_to_drawdown == 0.0
 
     def test_risk_metrics_recovery_factor(self):
-        metrics = RiskMetrics(total_return=0.2, max_drawdown=0.1)
+        metrics = RiskMetrics(total_return=0.2, max_drawdown_pct=10.0)
         assert metrics.recovery_factor == 2.0
 
     def test_risk_metrics_recovery_factor_no_drawdown(self):
-        metrics = RiskMetrics(total_return=0.2, max_drawdown=0.0)
+        metrics = RiskMetrics(total_return=0.2, max_drawdown_pct=0.0)
         assert metrics.recovery_factor == 0.0
 
     def test_risk_metrics_to_dict(self):
