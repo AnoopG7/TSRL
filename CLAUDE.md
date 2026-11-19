@@ -56,8 +56,7 @@
 | Radix UI | UI primitives |
 
 **Chart Components** (`frontend/src/components/charts/`):
-- `EquityCurveChart.tsx` — Portfolio equity over time
-- `DrawdownChart.tsx` — Drawdown visualization
+- `quant/` — `PerformanceChart` (equity + underwater, synced crosshair), `RollingSharpeChart`, `ReturnHistogram`, `MultiEquityChart` (indexed % return), `WalkForwardChart`; shared chrome in `quant/chartKit.ts`
 - `FinancialTrendsChart.tsx` — Revenue, margins, FCF
 - `EpsSurpriseChart.tsx` — EPS beat/miss history
 - `RadarScoreChart.tsx` — Health score radar
@@ -67,7 +66,9 @@
 **Pages** (`frontend/src/pages/`):
 | Page | Purpose |
 |------|---------|
-| `BacktestPage.tsx` | Single-strategy backtest with charts |
+| `OverviewPage.tsx` | Landing page (`/`): hero, research loop, live strategy registry, recent runs |
+| `BacktestPage.tsx` | Single-strategy backtest (`/backtest`), config rail + shared `BacktestResults` |
+| `MLLabPage.tsx` | ML Lab (`/ml`): train RF/GBM via `/backtests/run`, method explainer, leakage guard |
 | `ComparisonPage.tsx` | Multi-strategy comparison |
 | `FundamentalsPage.tsx` — Fundamental analysis (Overview, Financials, Ratios, News, Insiders) |
 | `OptimizationPage.tsx` | Parameter optimization (Grid/Random/Genetic) |
@@ -144,12 +145,13 @@ Data Layer (SQLite, Yahoo Finance, NSE, FMP)
 
 ### ML (`src/ml/`)
 
-- `feature_engineering/features.py` — 116 features (lag, rolling, technicals, volume)
-- `strategies/ml_strategies.py` — MLRandomForestStrategy, MLGradientBoostingStrategy
+- `feature_engineering/features.py` — `add_all_features()` returns 116 columns = OHLCV + 111 engineered features; RF trains on 13, GBM on 11 (`keep_cols`)
+- `strategies/ml_strategies.py` — MLRandomForestStrategy, MLGradientBoostingStrategy. Both use `_walk_forward_signals`: refit every `retrain_period` bars on labels already resolved (embargo = `prediction_horizon`); `tests/unit/ml/test_ml_no_leakage.py` guards this. `lookback` is accepted but unused (hidden in ML Lab)
 
 ### Frontend (`frontend/src/`)
 
-- `pages/` — 6 pages (Backtest, Comparison, Fundamentals, Optimization, Portfolio, WalkForward)
+- `pages/` — 8 pages (Overview, Backtest, Comparison, Portfolio, Optimization, WalkForward, ML Lab, Fundamentals)
+- `styles/color.css` — design tokens; light is default, `[data-theme=dark]` overrides (graphite). `--color-up/down`, `--chart-*`, validated `--series-1..6`; `styles/theme.css` — all component CSS (no Tailwind utilities)
 - `components/` — UI components, chart components
 - `hooks/` — API hooks (apiHooks.ts)
 - `store/` — Zustand stores (useBacktestStore, useDataSourceStore, useThemeStore)
@@ -286,7 +288,7 @@ Raw Data → Data Provider → Cache Layer → Domain Entities → Services → 
 - ✅ Fundamental analysis (health scores, ratios, insider tracking)
 - ✅ 50+ risk metrics
 - ✅ FastAPI with 16+ endpoints
-- ✅ React frontend with 6 pages
+- ✅ React frontend with 8 pages (sidebar shell, light/dark themes)
 - ✅ Database persistence with Alembic migrations
 - ✅ 486 tests (89% coverage)
 
@@ -594,6 +596,10 @@ SQLite with SQLAlchemy ORM. Models in `src/infrastructure/database/models/`:
 - `OptimizationRun` - Optimization results
 
 ### Important Implementation Details
+
+- Equity curve (`BacktestEngine._calculate_equity_curve`) is marked to market daily (realised + open-position P&L); all daily-return metrics derive from it.
+- CPU-bound API handlers are plain `def` so FastAPI runs them in the threadpool; keep new heavy endpoints sync, not `async def`.
+- yfinance reports `dividendYield` in percent; `YFinanceFundamentalProvider._normalise_info` converts it to a fraction like every other ratio.
 
 1. **PYTHONPATH** must include `.` when running CLI or tests from project root
 2. **Strategy parameters** validated via Pydantic-like Parameter class with min/max bounds
