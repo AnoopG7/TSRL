@@ -47,6 +47,10 @@ class YahooFinanceProvider(BaseDataProvider):
                 if df.empty:
                     raise DataProviderError(f"No data returned for symbol: {symbol}")
 
+                # Exchange-local wall-clock dates, no tz: matches rows cached in SQLite.
+                if getattr(df.index, "tz", None) is not None:
+                    df.index = df.index.tz_localize(None)
+
                 df = self.normalize_columns(df)
                 df = self.handle_missing_values(df)
                 df = self.remove_duplicates(df)
